@@ -1,10 +1,10 @@
 """Quick visual check of preprocessing output."""
-import cv2
-import numpy as np
-from pathlib import Path
 import random
 
-output_dir = Path("data/preprocessed")
+import cv2
+from pyprojroot import here
+
+output_dir = here("data/preprocessed")
 img_dir = output_dir / "fastai" / "images" / "train"
 mask_dir = output_dir / "fastai" / "masks" / "train"
 
@@ -30,3 +30,13 @@ for img_path in samples:
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+
+# Spot-check one label file
+label = here("data/preprocessed/yolo/labels/train").glob("*.txt").__next__()
+content = label.read_text().strip()
+parts = content.split()
+print(f"Class: {parts[0]}")  # should be "0"
+print(f"Points: {(len(parts) - 1) // 2}")  # should be > 10
+# All coordinate values should be between 0 and 1
+coords = [float(x) for x in parts[1:]]
+print(f"Coord range: {min(coords):.4f} – {max(coords):.4f}")  # should be 0.0–1.0
