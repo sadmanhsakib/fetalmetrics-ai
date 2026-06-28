@@ -30,7 +30,12 @@ Annotation convention
 HC18 ships a *_Annotation.png alongside every training image.
   - Shape : same (H, W) as the paired image
   - dtype : uint8
-  - Values: 0 (background) | 255 (fetal head ellipse)
+  - Values: 0 (background) | 255 (fetal head ellipse OUTLINE)
+
+IMPORTANT: The annotation stores only the ellipse *outline* (hollow ring),
+not a filled region. Raw coverage is ~0.4–0.9% of image area. The
+fill_annotation_mask() function fills the interior so the mask becomes a
+solid ellipse with the expected 20–40% image coverage.
 """
 
 from __future__ import annotations
@@ -47,6 +52,37 @@ from sklearn.model_selection import train_test_split
 DATASET_PATH = here("data/raw/training_set_pixel_size_and_HC.csv")
 IMAGE_DIR = here("data/raw/training_set")
 OUTPUT_DIR = here("data/preprocessed")
+
+
+def fill_annotation_mask(outline: np.ndarray) -> np.ndarray:
+    """
+    Convert a hollow ellipse outline (as stored in HC18 *_Annotation.png
+    files) into a solid filled binary mask.
+
+    The HC18 annotations contain only the ellipse boundary — a thin ring
+    of white pixels (~0.4–0.9 % image area). Models need a solid region.
+    This function finds the largest contour in the outline and redraws it
+    as a filled polygon, yielding the expected 20–40 % mask coverage.
+
+    Args:
+        outline: Grayscale uint8 array (H, W) with values 0 or 255,
+                 representing the ellipse boundary.
+
+    Returns:
+        Solid binary mask (H, W, uint8) with the ellipse interior filled
+        (255 = fetal head, 0 = background). Returns a copy of ``outline``
+        unchanged if no contour is found.
+    """
+    contours, _ = cv2.findContours(outline, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return outline.copy()   # nothing to fill — return as-is
+
+    # Use the largest contour (guards against tiny noise blobs)
+    largest = max(contours, key=cv2.contourArea)
+
+    filled = np.zeros_like(outline)
+    cv2.drawContours(filled, [largest], contourIdx=-1, color=255, thickness=cv2.FILLED)
+    return filled
 
 
 def mask_to_yolo_polygon(mask: np.ndarray) -> str | None:
@@ -180,6 +216,10 @@ def preprocess(
 
             # Ensure strictly binary (0 / 255) — guard against edge cases
             _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+
+            # The annotation stores only the ellipse OUTLINE (hollow ring).
+            # Fill the interior so downstream models get a solid region mask.
+            mask = fill_annotation_mask(mask)
 
             # ── metadata from CSV ───────────────────────────────────────
             pixel_size: float = float(row["pixel size(mm)"])
