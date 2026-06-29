@@ -30,15 +30,20 @@ dummy_image = np.random.randn(1, 3, 640, 640).astype(np.float32)
 _ = session.run(None, {input_name: dummy_image})
 
 # 6. Benchmark speed
-runs = 20
+WARMUP_RUNS = 10
+BENCHMARK_RUNS = 50  # More runs → lower variance in the reported mean
+
+for _ in range(WARMUP_RUNS):
+    session.run(None, {input_name: dummy_image})
+
 latencies = []
-for _ in range(runs):
-    t0 = time.time()
+for _ in range(BENCHMARK_RUNS):
+    t0 = time.perf_counter()
     outputs = session.run(None, {input_name: dummy_image})
-    latencies.append(time.time() - t0)
+    latencies.append(time.perf_counter() - t0)
 
 mean_latency_ms = np.mean(latencies) * 1000
-print(f"Average CPU Inference Latency: {mean_latency_ms:.1f}ms")
+print(f"Mean CPU Inference Latency: {mean_latency_ms:.1f}ms")
 print(f"Number of Output Tensors: {len(outputs)}")
 
 # Verify target constraint
