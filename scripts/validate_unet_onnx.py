@@ -69,7 +69,7 @@ mean_latency_ms = np.mean(latencies) * 1000
 p95_latency_ms  = np.percentile(latencies, 95) * 1000
 print(f"Mean CPU Latency: {mean_latency_ms:.1f}ms  |  P95: {p95_latency_ms:.1f}ms")
 
-# Parse output (Complication #4: Argmax over channels)
+# Parse output
 logits = outputs[0]  # shape: (1, 2, 256, 256)
 pred_mask = np.argmax(logits, axis=1)[0]  # shape: (256, 256)
 print(f"Parsed predicted mask values: {np.unique(pred_mask)} (Expected: [0 1] or subset)")
