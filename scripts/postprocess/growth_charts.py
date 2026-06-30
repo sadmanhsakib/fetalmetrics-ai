@@ -111,6 +111,5 @@ def main():
     risk = classify_clinical_risk(percentile)
     print(f"Risk: {risk}")
 
-
 if __name__ == "__main__":
     main()
