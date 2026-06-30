@@ -25,6 +25,7 @@ class EllipseParams:
     circumference_px: float
     circumference_mm: float
 
+
 def fit_fetal_ellipse(contour: np.ndarray, pixel_size_mm: float) -> EllipseParams:
     """
     Fit an ellipse to a contour and compute its circumference in physical millimeters.
@@ -75,3 +76,29 @@ def fit_fetal_ellipse(contour: np.ndarray, pixel_size_mm: float) -> EllipseParam
         circumference_px=perimeter_px,
         circumference_mm=perimeter_mm
     )
+
+
+def main():
+    # Create sample data for testing
+    contour = np.array([[[10, 10]], [[20, 20]], [[30, 30]], [[40, 40]], [[50, 50]]], dtype=np.int32)
+    pixel_size_mm = 1.0
+
+    # Test with a valid contour
+    try:
+        result = fit_fetal_ellipse(contour, pixel_size_mm)
+        print("Test Case 1 (Valid Contour): Success")
+        print(f"Ellipse Parameters: {result}")
+    except ValueError as e:
+        print(f"Test Case 1 (Valid Contour): Error - {e}")
+
+    # Test with an invalid contour (too few points)
+    try:
+        result = fit_fetal_ellipse(contour[:3], pixel_size_mm)
+        print("Test Case 2 (Invalid Contour): Success")
+        print(f"Ellipse Parameters: {result}")
+    except ValueError as e:
+        print(f"Test Case 2 (Invalid Contour): Error - {e}")
+
+
+if __name__ == "__main__":
+    main()

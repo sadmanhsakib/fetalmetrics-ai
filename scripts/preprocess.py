@@ -171,11 +171,11 @@ def preprocess(
     # ------------------------------------------------------------------
     for split in splits:
         # YOLOv8-seg
-        (output_dir / "yolo" / "images" / split).mkdir(parents=True, exist_ok=True)
-        (output_dir / "yolo" / "labels" / split).mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / "yolo" / "images" / split).mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / "yolo" / "labels" / split).mkdir(parents=True, exist_ok=True)
         # U-Net / FastAI
-        (output_dir / "fastai" / "images" / split).mkdir(parents=True, exist_ok=True)
-        (output_dir / "fastai" / "masks"  / split).mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / "fastai" / "images" / split).mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / "fastai" / "masks"  / split).mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Process images
@@ -190,8 +190,8 @@ def preprocess(
         for _, row in split_df.iterrows():
             filename = str(row["filename"])
             stem = Path(filename).stem  # e.g. "001_HC"
-            img_path = images_dir / filename
-            ann_path = images_dir / f"{stem}_Annotation.png"
+            img_path = IMAGE_DIR / filename
+            ann_path = IMAGE_DIR / f"{stem}_Annotation.png"
 
             # ── check source files ──────────────────────────────────────
             if not img_path.exists():
@@ -226,19 +226,19 @@ def preprocess(
             hc_mm:      float = float(row["head circumference (mm)"])
 
             # ── YOLOv8-seg output ───────────────────────────────────────
-            yolo_img_path = output_dir / "yolo" / "images" / split_name / f"{stem}.png"
+            yolo_img_path = OUTPUT_DIR / "yolo" / "images" / split_name / f"{stem}.png"
             cv2.imwrite(str(yolo_img_path), img_rgb)
 
             yolo_label = mask_to_yolo_polygon(mask)
             if yolo_label is None:
                 errors.append(f"[NO CONTOUR] {filename} — YOLO label skipped")
             else:
-                label_path = output_dir / "yolo" / "labels" / split_name / f"{stem}.txt"
+                label_path = OUTPUT_DIR / "yolo" / "labels" / split_name / f"{stem}.txt"
                 label_path.write_text(yolo_label)
 
             # ── U-Net / FastAI output ───────────────────────────────────
-            fastai_img_path  = output_dir / "fastai" / "images" / split_name / f"{stem}.png"
-            fastai_mask_path = output_dir / "fastai" / "masks"  / split_name / f"{stem}.png"
+            fastai_img_path  = OUTPUT_DIR / "fastai" / "images" / split_name / f"{stem}.png"
+            fastai_mask_path = OUTPUT_DIR / "fastai" / "masks"  / split_name / f"{stem}.png"
             cv2.imwrite(str(fastai_img_path),  img_rgb)
             cv2.imwrite(str(fastai_mask_path), mask)
 
@@ -259,9 +259,9 @@ def preprocess(
     # ------------------------------------------------------------------
     # Write YOLOv8 data.yaml
     # ------------------------------------------------------------------
-    data_yaml_path = output_dir / "yolo" / "data.yaml"
+    data_yaml_path = OUTPUT_DIR / "yolo" / "data.yaml"
     data_yaml_path.write_text(
-        f"path: {(output_dir / 'yolo').resolve()}\n"
+        f"path: {(OUTPUT_DIR / 'yolo').resolve()}\n"
         "train: images/train\n"
         "val:   images/val\n"
         "nc: 1\n"
@@ -272,14 +272,14 @@ def preprocess(
     # ------------------------------------------------------------------
     # Write FastAI split CSV
     # ------------------------------------------------------------------
-    split_csv = output_dir / "fastai" / "split.csv"
+    split_csv = OUTPUT_DIR / "fastai" / "split.csv"
     pd.DataFrame(split_records).to_csv(split_csv, index=False)
     print(f"split.csv written  → {split_csv}")
 
     # ------------------------------------------------------------------
     # Write pixel / HC metadata JSON
     # ------------------------------------------------------------------
-    metadata_path = output_dir / "pixel_metadata.json"
+    metadata_path = OUTPUT_DIR / "pixel_metadata.json"
     metadata_path.write_text(json.dumps(pixel_metadata, indent=2))
     print(f"metadata written   → {metadata_path}")
 

@@ -1,6 +1,13 @@
 """Module for fetal head contour extraction."""
+import os
+import random
+
 import cv2
 import numpy as np
+from pyprojroot import here
+
+IMG_DIR = here("data/preprocessed/fastai/images/train/")
+
 
 def extract_largest_contour(mask: np.ndarray, min_area_px: float = 1000.0) -> np.ndarray:
     """
@@ -37,3 +44,38 @@ def extract_largest_contour(mask: np.ndarray, min_area_px: float = 1000.0) -> np
         )
 
     return largest_contour
+
+
+def main():
+    sample_img = os.path.join(IMG_DIR, random.choice(os.listdir(IMG_DIR)))
+    mask_path = str(sample_img).replace("images", "masks")
+
+    if not os.path.exists(mask_path):
+        print(f"Corresponding mask not found at: {mask_path}")
+        return
+
+    print(f"Loading actual mask for: {os.path.basename(sample_img)}")
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    if mask is None:
+        print(f"Failed to read mask from: {mask_path}")
+        return
+
+    try:
+        largest_contour = extract_largest_contour(mask)
+        print(f"Successfully extracted largest contour.")
+        print(f"Contour shape: {largest_contour.shape}")
+        print(f"Contour area: {cv2.contourArea(largest_contour):.1f} px")
+
+        img = cv2.imread(sample_img)
+        cv2.drawContours(img, largest_contour, -1, (0, 255, 0), 2)
+
+        cv2.imshow("Contours", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    except ValueError as e:
+        print(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    main()
