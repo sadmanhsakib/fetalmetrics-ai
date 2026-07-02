@@ -137,9 +137,11 @@ MODELS: dict[str, ModelSpec] = {
         display_name="U-Net",
         family="unet",
         weights_path=MODELS_DIR / "unet_hc.onnx",
-        input_size=(512, 512),
-        channels=1,
-        normalize="scale",
+        input_size=(256, 256),
+        channels=3,
+        normalize="standard",
+        mean=(0.485, 0.456, 0.406),   # ImageNet mean — matches training pipeline
+        std=(0.229, 0.224, 0.225),    # ImageNet std  — matches training pipeline
         description="Encoder-decoder semantic segmentation. Dense pixel mask.",
     ),
 }

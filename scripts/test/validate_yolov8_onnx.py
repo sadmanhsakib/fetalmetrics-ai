@@ -11,7 +11,7 @@ from pyprojroot import here
 
 # 1. Setup paths
 IMG_PATH = here("data/preprocessed/yolo/images/train/")
-MODEL_PATH = here("models/yolov8s-seg.onnx")
+MODEL_PATH = here("models/yolov8_hc.onnx")
 
 if not IMG_PATH.exists():
     raise FileNotFoundError(f"Image directory not found at {IMG_PATH}. Make sure it is downloaded and placed in the right directory. ")

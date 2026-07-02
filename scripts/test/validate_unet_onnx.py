@@ -11,7 +11,7 @@ from pyprojroot import here
 
 # 1. Setup paths
 IMG_PATH = here("data/preprocessed/fastai/images/train/")
-MODEL_PATH = here("models/unet-resnet34.onnx")
+MODEL_PATH = here("models/unet_hc.onnx")
 
 if not IMG_PATH.exists():
     raise FileNotFoundError(f"Image directory not found at {IMG_PATH}. Make sure it is downloaded and placed in the right directory. ")
