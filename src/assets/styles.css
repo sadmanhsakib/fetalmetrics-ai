@@ -1,0 +1,247 @@
+/* ============================================================================
+   fetalmetrics-ai — clinical research-console theme
+   Dark ink canvas, IBM Plex type, cyan primary. Risk colors are semantic only.
+   ========================================================================== */
+
+:root {
+  --ink:        #0A111F;   /* app canvas            */
+  --panel:      #111C2E;   /* cards / sidebar       */
+  --panel-2:    #0E1726;   /* nested surfaces       */
+  --line:       #223046;   /* hairline borders      */
+  --line-soft:  #1A2537;
+  --text:       #E6EDF6;   /* primary text          */
+  --muted:      #93A4BF;   /* secondary text        */
+  --faint:      #6B7C97;   /* tertiary / captions   */
+  --cyan:       #22D3EE;   /* primary accent        */
+  --cyan-dim:   #0E7490;
+
+  --risk-high:   #EF4444;
+  --risk-high-2: #F43F5E;
+  --risk-med:    #F59E0B;
+  --risk-med-2:  #D97706;
+  --risk-norm:   #10B981;
+  --risk-norm-2: #059669;
+
+  --radius: 16px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- base ---------------------------------------------------------------- */
+html, body, [class*="css"], .stApp {
+  font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  color: var(--text);
+}
+.stApp { background: radial-gradient(1200px 600px at 15% -5%, #0f1d31 0%, var(--ink) 55%); }
+
+/* tighten the default top padding, keep breathing room on the sides */
+.block-container { padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1180px; }
+
+/* hide default Streamlit chrome for a product feel */
+#MainMenu, header[data-testid="stHeader"], footer { visibility: hidden; }
+[data-testid="stToolbar"], [data-testid="stDecoration"] { display: none; }
+
+.mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+
+/* ---- header banner ------------------------------------------------------- */
+.fm-header {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 14px;
+  background:
+    linear-gradient(120deg, rgba(34,211,238,0.10), rgba(34,211,238,0.0) 45%),
+    linear-gradient(180deg, #12203450, var(--panel));
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.fm-header::after {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+  background: linear-gradient(90deg, var(--cyan), transparent 60%);
+}
+.fm-title { display: flex; align-items: center; gap: 14px; }
+.fm-logo {
+  width: 44px; height: 44px; border-radius: 12px; flex: none;
+  display: grid; place-items: center; font-size: 22px;
+  background: linear-gradient(160deg, #0b3b47, #0a1b2b);
+  border: 1px solid var(--cyan-dim);
+  box-shadow: inset 0 0 18px rgba(34,211,238,0.20);
+}
+.fm-title h1 {
+  font-size: 1.55rem; font-weight: 600; letter-spacing: -0.01em; margin: 0;
+  line-height: 1.1;
+}
+.fm-title h1 .accent { color: var(--cyan); }
+.fm-title .sub { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.fm-pill {
+  margin-left: auto; align-self: flex-start;
+  font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--cyan); border: 1px solid var(--cyan-dim);
+  padding: 4px 10px; border-radius: 999px; background: rgba(34,211,238,0.06);
+}
+
+/* ---- safety banner ------------------------------------------------------- */
+.fm-safety {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-left: 4px solid var(--risk-med);
+  background: linear-gradient(180deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04));
+  border-radius: 12px; padding: 12px 16px; margin-bottom: 20px;
+}
+.fm-safety .ico { font-size: 1.15rem; line-height: 1.4; }
+.fm-safety .txt { font-size: 0.9rem; color: #FCE9C8; }
+.fm-safety .txt b { color: #FBBF24; font-weight: 600; }
+
+/* ---- section labels ------------------------------------------------------ */
+.fm-section {
+  display: flex; align-items: center; gap: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem;
+  color: var(--faint); font-weight: 600; margin: 22px 0 10px;
+}
+.fm-section::before {
+  content: ""; width: 14px; height: 2px; background: var(--cyan); border-radius: 2px;
+}
+
+/* ---- panels & image frames ---------------------------------------------- */
+.fm-panel {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); box-shadow: var(--shadow); padding: 14px;
+}
+.fm-imgcap {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.78rem; color: var(--muted); margin: 2px 4px 8px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.fm-imgcap .dot { color: var(--cyan); }
+[data-testid="stImage"] img {
+  border-radius: 12px; border: 1px solid var(--line); background: #05080f;
+}
+
+/* ---- metric card grid ---------------------------------------------------- */
+.fm-metric {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  padding: 16px 18px; height: 100%;
+}
+.fm-metric .label {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--faint); font-weight: 600;
+}
+.fm-metric .value {
+  font-family: "IBM Plex Mono", monospace; font-weight: 600;
+  font-size: 2.15rem; line-height: 1.1; margin-top: 8px; color: var(--text);
+}
+.fm-metric .value .unit { font-size: 1rem; color: var(--muted); margin-left: 4px; }
+.fm-metric .sub { font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
+.fm-metric .sub .pos { color: var(--risk-norm); }
+.fm-metric .sub .neg { color: var(--risk-med); }
+
+/* risk card variant (color driven by inline vars) */
+.fm-risk {
+  border: 1px solid var(--rk); border-left: 4px solid var(--rk);
+  border-radius: var(--radius); padding: 16px 18px; height: 100%;
+  background: var(--rk-soft);
+}
+.fm-risk .top { display: flex; align-items: center; gap: 8px; }
+.fm-risk .badge {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--rk);
+}
+.fm-risk .headline {
+  font-size: 1.25rem; font-weight: 600; color: var(--text); margin-top: 8px;
+}
+.fm-risk .detail { font-size: 0.84rem; color: var(--muted); margin-top: 6px; }
+
+/* ---- percentile gauge ---------------------------------------------------- */
+.fm-gauge { margin: 6px 2px 2px; }
+.fm-gauge .track {
+  position: relative; height: 20px; border-radius: 999px; overflow: hidden;
+  border: 1px solid var(--line);
+  /* zone widths mirror the risk thresholds: 0-10 / 10-25 / 25-100 */
+  background: linear-gradient(90deg,
+    var(--risk-high)  0%,  var(--risk-high)  10%,
+    var(--risk-med)   10%, var(--risk-med)   25%,
+    var(--risk-norm)  25%, var(--risk-norm)  100%);
+  opacity: 0.92;
+}
+.fm-gauge .marker {
+  position: absolute; top: -6px; width: 3px; height: 32px; border-radius: 3px;
+  background: #ffffff; box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 0 10px rgba(255,255,255,0.6);
+  transform: translateX(-50%);
+}
+.fm-gauge .bubble {
+  position: absolute; top: -34px; transform: translateX(-50%);
+  font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 600;
+  color: var(--ink); background: #fff; padding: 2px 8px; border-radius: 6px;
+  white-space: nowrap; box-shadow: var(--shadow);
+}
+.fm-gauge .bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+.fm-gauge .ticks {
+  position: relative; height: 18px; margin-top: 6px;
+  font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; color: var(--faint);
+}
+.fm-gauge .tick { position: absolute; transform: translateX(-50%); }
+.fm-gauge .tick .bar {
+  display: block; width: 1px; height: 6px; background: var(--line);
+  margin: 0 auto 3px;
+}
+.fm-legend {
+  display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap;
+  font-size: 0.78rem; color: var(--muted);
+}
+.fm-legend .item { display: flex; align-items: center; gap: 7px; }
+.fm-legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+
+/* ---- timing / footer strip ---------------------------------------------- */
+.fm-strip {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  border: 1px solid var(--line-soft); border-radius: 12px;
+  background: var(--panel-2); padding: 10px 16px; margin-top: 18px;
+  font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; color: var(--muted);
+}
+.fm-strip .k { color: var(--faint); }
+.fm-strip .v { color: var(--text); }
+.fm-strip .sep { color: var(--line); }
+
+/* ---- empty state --------------------------------------------------------- */
+.fm-empty {
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  padding: 42px 32px; text-align: center; margin-top: 8px;
+}
+.fm-empty .big { font-size: 2.4rem; }
+.fm-empty h3 { margin: 12px 0 6px; font-weight: 600; }
+.fm-empty p { color: var(--muted); max-width: 520px; margin: 0 auto; font-size: 0.92rem; }
+
+/* ---- sidebar ------------------------------------------------------------- */
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #0d1728, #0b1320);
+  border-right: 1px solid var(--line);
+}
+[data-testid="stSidebar"] .block-container { padding-top: 1.2rem; }
+.fm-side-brand {
+  font-weight: 600; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
+}
+.fm-side-brand .d { color: var(--cyan); }
+.fm-side-note { font-size: 0.78rem; color: var(--faint); margin-bottom: 10px; }
+
+/* status chips for model availability */
+.fm-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
+  padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line);
+  color: var(--muted); margin-top: 4px;
+}
+.fm-chip .d { width: 7px; height: 7px; border-radius: 50%; }
+.fm-chip .on { background: var(--risk-norm); }
+.fm-chip .off { background: var(--faint); }
+
+/* refine widgets */
+.stSlider [data-baseweb="slider"] { padding-top: 4px; }
+div[data-testid="stFileUploader"] section {
+  border: 1px dashed var(--line); border-radius: 12px; background: var(--panel-2);
+}
+hr { border-color: var(--line-soft); }
