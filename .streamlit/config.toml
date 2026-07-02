@@ -1,0 +1,20 @@
+# Streamlit theme — a dark clinical "research console" register.
+# Grayscale ultrasound and the cyan overlay read best on a deep ink canvas.
+# Risk colors (crimson / amber / emerald) are reserved for semantics in-app.
+
+[theme]
+base = "dark"
+primaryColor = "#22D3EE"                 # clinical cyan — actions & focus
+backgroundColor = "#0A111F"              # deep ink canvas
+secondaryBackgroundColor = "#111C2E"     # panels / sidebar
+textColor = "#E6EDF6"
+font = "sans serif"
+
+[server]
+maxUploadSize = 25
+enableXsrfProtection = true
+address = "0.0.0.0"
+port = 8501
+
+[browser]
+gatherUsageStats = false
