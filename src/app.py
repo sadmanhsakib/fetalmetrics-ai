@@ -48,8 +48,7 @@ def load_image(uploaded) -> np.ndarray:
 def render_sidebar() -> dict:
     with st.sidebar:
         st.markdown(
-            '<div class="fm-side-brand"><b>🩺 Fetal <span class="d">Metrics-AI</span></b></div>'
-            '<div class="fm-side-note">Automated fetal biometry · research build</div>',
+            '<div class="fm-side-brand"><b>🩺 Fetal <span class="d">Metrics-AI</span></b></div>',
             unsafe_allow_html=True,
         )
         st.divider()
