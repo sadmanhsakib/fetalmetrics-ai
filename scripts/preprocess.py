@@ -35,7 +35,7 @@ HC18 ships a *_Annotation.png alongside every training image.
 IMPORTANT: The annotation stores only the ellipse *outline* (hollow ring),
 not a filled region. Raw coverage is ~0.4–0.9% of image area. The
 fill_annotation_mask() function fills the interior so the mask becomes a
-solid ellipse with the expected 20–40% image coverage.
+solid ellipse.
 """
 
 from __future__ import annotations
@@ -61,8 +61,9 @@ def fill_annotation_mask(outline: np.ndarray) -> np.ndarray:
 
     The HC18 annotations contain only the ellipse boundary — a thin ring
     of white pixels (~0.4–0.9 % image area). Models need a solid region.
-    This function finds the largest contour in the outline and redraws it
-    as a filled polygon, yielding the expected 20–40 % mask coverage.
+    This function uses morphological closing to bridge small gaps, then
+    fills the interior using the convex hull of the contour, yielding
+    the expected 20–40 % mask coverage.
 
     Args:
         outline: Grayscale uint8 array (H, W) with values 0 or 255,
@@ -73,15 +74,27 @@ def fill_annotation_mask(outline: np.ndarray) -> np.ndarray:
         (255 = fetal head, 0 = background). Returns a copy of ``outline``
         unchanged if no contour is found.
     """
-    contours, _ = cv2.findContours(outline, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Step 1: Morphological closing to bridge small gaps in the outline
+    # This is crucial for annotations that have disconnected pixels
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    closed = cv2.morphologyEx(outline, cv2.MORPH_CLOSE, kernel, iterations=2)
+    
+    # Step 2: Find contours in the closed mask
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return outline.copy()   # nothing to fill — return as-is
 
-    # Use the largest contour (guards against tiny noise blobs)
+    # Step 3: Use the largest contour (guards against tiny noise blobs)
     largest = max(contours, key=cv2.contourArea)
+    
+    # Step 4: Compute convex hull to ensure a solid, filled region
+    # This works better for ellipses than drawContours with FILLED
+    hull = cv2.convexHull(largest)
 
+    # Step 5: Fill the convex hull
     filled = np.zeros_like(outline)
-    cv2.drawContours(filled, [largest], contourIdx=-1, color=255, thickness=cv2.FILLED)
+    cv2.fillPoly(filled, [hull], 255)
+    
     return filled
 
 
@@ -157,12 +170,80 @@ def preprocess(
         raise ValueError(f"CSV is missing required columns: {missing}")
 
     # ------------------------------------------------------------------
-    # Train / val split
+    # Pre-filter: Remove problematic samples BEFORE splitting
+    # ------------------------------------------------------------------
+    print(f"\nPre-filtering samples for quality...")
+    valid_samples = []
+    rejected_samples = []
+
+    for _, row in df.iterrows():
+        filename = str(row["filename"])
+        stem = Path(filename).stem
+        img_path = images_dir / filename
+        ann_path = images_dir / f"{stem}_Annotation.png"
+
+        # Check if files exist
+        if not img_path.exists():
+            rejected_samples.append((filename, "Missing image file"))
+            continue
+        if not ann_path.exists():
+            rejected_samples.append((filename, "Missing annotation file"))
+            continue
+
+        # Load and validate annotation
+        mask = cv2.imread(str(ann_path), cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            rejected_samples.append((filename, "Failed to load annotation"))
+            continue
+
+        # Threshold and fill
+        _, mask_binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+        mask_filled = fill_annotation_mask(mask_binary)
+
+        # Check if mask was successfully filled
+        coverage = (mask_filled > 0).sum() / mask_filled.size * 100
+
+        if coverage < 5.0:
+            rejected_samples.append((filename, f"Hollow mask (coverage={coverage:.1f}%)"))
+            continue
+        if coverage > 60.0:
+            rejected_samples.append((filename, f"Suspicious mask (coverage={coverage:.1f}%)"))
+            continue
+
+        # Validate that YOLO polygon can be generated
+        test_polygon = mask_to_yolo_polygon(mask_filled)
+        if test_polygon is None:
+            rejected_samples.append((filename, "Failed to generate YOLO polygon"))
+            continue
+
+        # All checks passed
+        valid_samples.append(row)
+
+    # Create clean dataframe with only valid samples
+    df_clean = pd.DataFrame(valid_samples)
+    
+    print(f"Pre-filtering results:")
+    print(f"  Total samples:    {len(df)}")
+    print(f"  Valid samples:    {len(df_clean)}")
+    print(f"  Rejected samples: {len(rejected_samples)}")
+    
+    if rejected_samples:
+        print(f"\nRejected samples:")
+        for fname, reason in rejected_samples:
+            print(f"  ✗ {fname:20s} — {reason}")
+
+    if len(df_clean) == 0:
+        raise ValueError("No valid samples remaining after pre-filtering!")
+
+    # ------------------------------------------------------------------
+    # Train / val split (on clean data only)
     # ------------------------------------------------------------------
     train_df, val_df = train_test_split(
-        df, test_size=val_split, random_state=67, shuffle=True
+        df_clean, test_size=val_split, random_state=67, shuffle=True
     )
-    print(f"Split   : {len(train_df)} train / {len(val_df)} val")
+    print(f"\nTrain/val split on clean data:")
+    print(f"  Train samples: {len(train_df)}")
+    print(f"  Val samples:   {len(val_df)}")
 
     splits: dict[str, pd.DataFrame] = {"train": train_df, "val": val_df}
 
@@ -171,18 +252,17 @@ def preprocess(
     # ------------------------------------------------------------------
     for split in splits:
         # YOLOv8-seg
-        (OUTPUT_DIR / "yolo" / "images" / split).mkdir(parents=True, exist_ok=True)
-        (OUTPUT_DIR / "yolo" / "labels" / split).mkdir(parents=True, exist_ok=True)
+        (output_dir / "yolo" / "images" / split).mkdir(parents=True, exist_ok=True)
+        (output_dir / "yolo" / "labels" / split).mkdir(parents=True, exist_ok=True)
         # U-Net / FastAI
-        (OUTPUT_DIR / "fastai" / "images" / split).mkdir(parents=True, exist_ok=True)
-        (OUTPUT_DIR / "fastai" / "masks"  / split).mkdir(parents=True, exist_ok=True)
+        (output_dir / "fastai" / "images" / split).mkdir(parents=True, exist_ok=True)
+        (output_dir / "fastai" / "masks"  / split).mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # Process images
+    # Process images (all samples have been pre-validated)
     # ------------------------------------------------------------------
     pixel_metadata: dict[str, dict[str, float]] = {}
     split_records:  list[dict] = []
-    errors:         list[str]  = []
 
     for split_name, split_df in splits.items():
         print(f"\nProcessing '{split_name}' split ({len(split_df)} images)…")
@@ -190,35 +270,16 @@ def preprocess(
         for _, row in split_df.iterrows():
             filename = str(row["filename"])
             stem = Path(filename).stem  # e.g. "001_HC"
-            img_path = IMAGE_DIR / filename
-            ann_path = IMAGE_DIR / f"{stem}_Annotation.png"
-
-            # ── check source files ──────────────────────────────────────
-            if not img_path.exists():
-                errors.append(f"[MISSING IMAGE]      {filename}")
-                continue
-            if not ann_path.exists():
-                errors.append(f"[MISSING ANNOTATION] {stem}_Annotation.png")
-                continue
+            img_path = images_dir / filename
+            ann_path = images_dir / f"{stem}_Annotation.png"
 
             # ── load image ──────────────────────────────────────────────
             img_gray = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
-            if img_gray is None:
-                errors.append(f"[LOAD FAILED] {filename}")
-                continue
             img_rgb = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2RGB)
 
-            # ── load annotation mask ────────────────────────────────────
+            # ── load & process annotation mask ─────────────────────────
             mask = cv2.imread(str(ann_path), cv2.IMREAD_GRAYSCALE)
-            if mask is None:
-                errors.append(f"[LOAD FAILED] {stem}_Annotation.png")
-                continue
-
-            # Ensure strictly binary (0 / 255) — guard against edge cases
             _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-
-            # The annotation stores only the ellipse OUTLINE (hollow ring).
-            # Fill the interior so downstream models get a solid region mask.
             mask = fill_annotation_mask(mask)
 
             # ── metadata from CSV ───────────────────────────────────────
@@ -226,30 +287,27 @@ def preprocess(
             hc_mm:      float = float(row["head circumference (mm)"])
 
             # ── YOLOv8-seg output ───────────────────────────────────────
-            yolo_img_path = OUTPUT_DIR / "yolo" / "images" / split_name / f"{stem}.png"
-            cv2.imwrite(str(yolo_img_path), img_rgb)
-
             yolo_label = mask_to_yolo_polygon(mask)
-            if yolo_label is None:
-                errors.append(f"[NO CONTOUR] {filename} — YOLO label skipped")
-            else:
-                label_path = OUTPUT_DIR / "yolo" / "labels" / split_name / f"{stem}.txt"
-                label_path.write_text(yolo_label)
+            yolo_img_path = output_dir / "yolo" / "images" / split_name / f"{stem}.png"
+            label_path = output_dir / "yolo" / "labels" / split_name / f"{stem}.txt"
+            
+            cv2.imwrite(str(yolo_img_path), img_rgb)
+            label_path.write_text(yolo_label)
 
             # ── U-Net / FastAI output ───────────────────────────────────
-            fastai_img_path  = OUTPUT_DIR / "fastai" / "images" / split_name / f"{stem}.png"
-            fastai_mask_path = OUTPUT_DIR / "fastai" / "masks"  / split_name / f"{stem}.png"
+            fastai_img_path  = output_dir / "fastai" / "images" / split_name / f"{stem}.png"
+            fastai_mask_path = output_dir / "fastai" / "masks"  / split_name / f"{stem}.png"
             cv2.imwrite(str(fastai_img_path),  img_rgb)
             cv2.imwrite(str(fastai_mask_path), mask)
 
             # ── accumulate records ──────────────────────────────────────
-            pixel_metadata[filename] = {
+            pixel_metadata[f"{stem}.png"] = {
                 "pixel_size_mm": pixel_size,
                 "hc_mm":         hc_mm,
             }
             split_records.append(
                 {
-                    "filename":      filename,
+                    "filename":      f"{stem}.png",
                     "split":         split_name,
                     "pixel_size_mm": pixel_size,
                     "hc_mm":         hc_mm,
@@ -259,9 +317,9 @@ def preprocess(
     # ------------------------------------------------------------------
     # Write YOLOv8 data.yaml
     # ------------------------------------------------------------------
-    data_yaml_path = OUTPUT_DIR / "yolo" / "data.yaml"
+    data_yaml_path = output_dir / "yolo" / "data.yaml"
     data_yaml_path.write_text(
-        f"path: {(OUTPUT_DIR / 'yolo').resolve()}\n"
+        f"path: {(output_dir / 'yolo').resolve()}\n"
         "train: images/train\n"
         "val:   images/val\n"
         "nc: 1\n"
@@ -272,14 +330,14 @@ def preprocess(
     # ------------------------------------------------------------------
     # Write FastAI split CSV
     # ------------------------------------------------------------------
-    split_csv = OUTPUT_DIR / "fastai" / "split.csv"
+    split_csv = output_dir / "fastai" / "split.csv"
     pd.DataFrame(split_records).to_csv(split_csv, index=False)
     print(f"split.csv written  → {split_csv}")
 
     # ------------------------------------------------------------------
     # Write pixel / HC metadata JSON
     # ------------------------------------------------------------------
-    metadata_path = OUTPUT_DIR / "pixel_metadata.json"
+    metadata_path = output_dir / "pixel_metadata.json"
     metadata_path.write_text(json.dumps(pixel_metadata, indent=2))
     print(f"metadata written   → {metadata_path}")
 
@@ -287,18 +345,20 @@ def preprocess(
     # Summary
     # ------------------------------------------------------------------
     processed = len(split_records)
-    print(f"\n{'='*52}")
+    print(f"\n{'='*60}")
     print("Preprocessing complete.")
-    print(f"  Output root     : {output_dir}")
-    print(f"  Train samples   : {len(train_df)}")
-    print(f"  Val samples     : {len(val_df)}")
-    print(f"  Processed OK    : {processed}")
-    print(f"  Errors / skipped: {len(errors)}")
-    if errors:
-        print("\nProblems encountered:")
-        for e in errors:
-            print(f"  ✗  {e}")
-    print(f"{'='*52}")
+    print(f"  Output root        : {output_dir}")
+    print(f"  Original samples   : {len(df)}")
+    print(f"  Rejected samples   : {len(rejected_samples)}")
+    print(f"  Clean samples      : {len(df_clean)}")
+    print(f"  Train samples      : {len(train_df)}")
+    print(f"  Val samples        : {len(val_df)}")
+    print(f"  Processed & written: {processed}")
+    print(f"{'='*60}")
+    
+    if rejected_samples:
+        print(f"\n💡 Tip: {len(rejected_samples)} samples were filtered out during. ")
+        print(f"   pre-processing to ensure only high-quality data for the training. ")
 
 
 if __name__ == "__main__":
