@@ -93,10 +93,17 @@ def render_sidebar() -> dict:
         # calibration
         st.markdown(C.section_label("4 · Calibration"), unsafe_allow_html=True)
         auto_hint = ""
+        default_val = float(config.DEFAULT_PIXEL_SIZE_MM)
         if uploaded is not None:
-            hc18 = calib.lookup_hc18(uploaded.name)
+            try:
+                img_rgb = load_image(uploaded)
+                uploaded.seek(0)  # Reset buffer so render_results can re-read the file
+                hc18 = calib.lookup_hc18(uploaded.name, img_rgb)
+            except Exception:
+                hc18 = calib.lookup_hc18(uploaded.name)
             if hc18:
                 auto_hint = f"HC18 metadata found: {hc18:.5f} mm/px"
+                default_val = hc18
         if auto_hint:
             st.caption("✅ " + auto_hint)
         elif calib.hc18_available():
@@ -107,7 +114,7 @@ def render_sidebar() -> dict:
         manual_mm_per_px = st.number_input(
             "Pixel scale (mm per pixel)",
             min_value=0.010, max_value=1.000,
-            value=float(config.DEFAULT_PIXEL_SIZE_MM), step=0.001, format="%.4f",
+            value=default_val, step=0.001, format="%.4f",
             help="Physical size of one pixel. Auto-filled from HC18 when available.",
         )
         prefer_manual = st.checkbox(
@@ -188,9 +195,11 @@ def render_missing_weights(model_key: str) -> None:
 
 
 def render_results(state: dict) -> None:
+    state["uploaded"].seek(0)  # Ensure file pointer is at start (sidebar may have read it)
     image = load_image(state["uploaded"])
     cal = calib.resolve(
         filename=state["uploaded"].name,
+        image_rgb=image,
         manual_mm_per_px=state["manual_mm_per_px"],
         prefer_manual=state["prefer_manual"],
     )
