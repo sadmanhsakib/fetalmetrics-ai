@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastai>=2.8.7",
+    "kagglehub>=1.0.2",
     "onnxruntime>=1.27.0",
     "opencv-python>=4.13.0.92",
     "pandas>=3.0.3",
