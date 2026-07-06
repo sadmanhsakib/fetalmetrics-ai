@@ -24,5 +24,14 @@ def fetch_dataset():
 
     print(f"✅ Dataset stored in {destination_path}/raw")
 
+
+def upload_dataset(handle, local_dataset_dir, is_new: bool = False):
+    if is_new:
+        kagglehub.dataset_upload(handle, local_dataset_dir)
+    else:
+        version_notes = input("Enter version notes: ")
+        kagglehub.dataset_upload(handle, local_dataset_dir, version_notes=version_notes)
+
+
 if __name__ == "__main__":
     fetch_dataset()
