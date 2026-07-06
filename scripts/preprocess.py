@@ -357,8 +357,7 @@ def preprocess(
     print(f"{'='*60}")
     
     if rejected_samples:
-        print(f"\n💡 Tip: {len(rejected_samples)} samples were filtered out during. ")
-        print(f"   pre-processing to ensure only high-quality data for the training. ")
+        print(f"\n💡 Tip: {len(rejected_samples)} samples were filtered out during pre-processing to ensure only high-quality data for the training. ")
 
 
 if __name__ == "__main__":
