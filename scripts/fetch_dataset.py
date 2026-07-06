@@ -1,15 +1,24 @@
 import os
 import shutil
+from pathlib import Path
 
 import kagglehub
-from pyprojroot import here
 
-download_path = "data/raw/"
-os.makedirs(download_path, exist_ok=True)
+destination_path = "data/"
+
+# removing the old dir for recency
+if os.path.exists(destination_path):
+    shutil.rmtree(destination_path)
+
+os.makedirs(destination_path, exist_ok=True)
 
 # Download the dataset
 path = kagglehub.dataset_download("thanhbnhphan/hc18-grand-challenge")
-# move the dataset
-shutil.move(path, here(download_path))
 
-print("Path to dataset files:", path)
+# move the dataset
+shutil.move(path, destination_path)
+
+os.rename(os.path.join(destination_path, os.path.basename(path)),
+          os.path.join(destination_path, "raw"))
+
+print(f"✅ Dataset stored in {destination_path}/raw")
