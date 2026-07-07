@@ -6,35 +6,28 @@ import sys
 import cv2
 import numpy as np
 import pandas as pd
-import onnxruntime as ort
 
 from pyprojroot import here
 
 # Add src to path
 sys.path.insert(0, str(here("src")))
 
+from config import MODELS
+from inference.unet_onnx import UNetSegmenter
+from inference.yolov8_onnx import YOLOv8Segmenter
 from postprocess.ellipse import measure_hc
 
 
-def preprocess_image(img_path, target_size=(256, 256)):
-    """Load and preprocess an image for U-Net inference."""
+def load_image_rgb(img_path) -> np.ndarray:
+    """Load an image as an RGB uint8 array (H, W, 3).
+
+    Both UNetSegmenter and YOLOv8Segmenter accept raw RGB images and handle
+    all model-specific preprocessing (resize, normalization, letterboxing)
+    internally via their ``predict`` method.
+    """
     img = cv2.imread(str(img_path))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, target_size)
-
-    # Normalize to [0, 1]
-    img = img.astype(np.float32) / 255.0
-
-    # Apply ImageNet normalization
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    img = (img - mean) / std
-
-    # Transpose to (C, H, W) and add batch dimension
-    img = np.transpose(img, (2, 0, 1))
-    img = np.expand_dims(img, axis=0)
-
-    return img.astype(np.float32)
+    return img
 
 
 def load_hc18_data():
@@ -53,17 +46,25 @@ def load_hc18_data():
 
 
 def main():
-    # Setup paths
-    IMG_PATH = here("data/preprocessed/fastai/images/val/")
-    MODEL_PATH = here("models/unet_hc.onnx")
+    model_name = input("Enter model name (unet/yolov8): ").strip().lower()
+
+    # Setup paths and instantiate the appropriate segmenter
+    if model_name == "unet":
+        IMG_PATH = here("data/preprocessed/fastai/images/val/")
+        segmenter = UNetSegmenter(MODELS["unet"])
+    elif model_name == "yolov8":
+        IMG_PATH = here("data/preprocessed/yolo/images/val/")
+        segmenter = YOLOv8Segmenter(MODELS["yolov8"])
+    else:
+        raise ValueError("Invalid model name. Please enter 'unet' or 'yolov8'.")
 
     if not IMG_PATH.exists():
         raise FileNotFoundError(
             f"Image directory not found at {IMG_PATH}"
         )
-    if not MODEL_PATH.exists():
+    if not segmenter.available:
         raise FileNotFoundError(
-            f"Model file not found at {MODEL_PATH}"
+            f"Model file not found at {segmenter.spec.weights_path}"
         )
 
     # Load HC18 data
@@ -74,9 +75,8 @@ def main():
     print("✅ Loaded HC18 ground truth data\n")
 
     # Load model
-    print(f"Loading U-Net ONNX model from: {MODEL_PATH}...")
-    session = ort.InferenceSession(str(MODEL_PATH), providers=["CPUExecutionProvider"])
-    input_name = session.get_inputs()[0].name
+    print(f"Loading {segmenter.name} ONNX model from: {segmenter.spec.weights_path}...")
+    segmenter._ensure_session()
     print("Model loaded\n")
 
     # Select test images
@@ -100,10 +100,11 @@ def main():
         img_path = IMG_PATH / img_name
         pixel_size, expected_hc = hc18_data[img_name]
 
-        # Run inference to get mask
-        img_tensor = preprocess_image(img_path)
-        outputs = session.run(None, {input_name: img_tensor})
-        pred_mask = np.argmax(outputs[0], axis=1)[0]
+        # Run inference — each segmenter handles its own preprocessing and
+        # output decoding, returning a binary mask at the original resolution.
+        img_rgb = load_image_rgb(img_path)
+        seg_result = segmenter.predict(img_rgb)
+        pred_mask = seg_result.mask
 
         # Use post-processing to measure HC
         hc_result = measure_hc(pred_mask, pixel_size)
