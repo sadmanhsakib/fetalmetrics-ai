@@ -13,7 +13,7 @@ models/
 !README.md
 test.py
 test.ipynb
-
+.DS_Store
 
 # Distribution / packaging
 .Python
