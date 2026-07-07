@@ -22,7 +22,7 @@ def fetch_dataset():
     os.rename(os.path.join(destination_path, os.path.basename(path)),
             os.path.join(destination_path, "raw"))
 
-    print(f"✅ Dataset stored in {destination_path}/raw")
+    print(f"✅ Dataset stored in {destination_path}raw")
 
 
 def upload_dataset(handle, local_dataset_dir, is_new: bool = False):
@@ -31,7 +31,10 @@ def upload_dataset(handle, local_dataset_dir, is_new: bool = False):
     else:
         version_notes = input("Enter version notes: ")
         kagglehub.dataset_upload(handle, local_dataset_dir, version_notes=version_notes)
-
+    print(f"✅ Dataset uploaded to {handle}. ")
 
 if __name__ == "__main__":
-    upload_dataset()
+    upload_dataset(
+        handle="sadmanhsakib/hc18-processed-dataset",
+        local_dataset_dir="data/processed"
+    )
