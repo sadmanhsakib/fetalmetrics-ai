@@ -14,28 +14,30 @@ at the boundary and return a clean RGB uint8 image ready for ``st.image``.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-import config  # noqa: E402
-from postprocess.ellipse import HCResult  # noqa: E402
+import config
+from postprocess.ellipse import HCResult
 
 
 def _to_rgb_uint8(image: np.ndarray) -> np.ndarray:
     """Coerce any grayscale/RGB/RGBA array to a contiguous RGB uint8 image."""
     img = np.asarray(image)
-    if img.dtype != np.uint8:
+    if np.issubdtype(img.dtype, np.floating):
+        if img.size > 0 and img.max() <= 1.0:
+            img = img * 255.0
         img = np.clip(img, 0, 255).astype(np.uint8)
+    elif img.dtype != np.uint8:
+        img = np.clip(img, 0, 255).astype(np.uint8)
+
     if img.ndim == 2:
         img = np.stack([img] * 3, axis=-1)
-    elif img.ndim == 3 and img.shape[2] == 4:
-        img = img[:, :, :3]
+    elif img.ndim == 3:
+        if img.shape[2] == 1:
+            img = np.squeeze(img, axis=2)
+            img = np.stack([img] * 3, axis=-1)
+        elif img.shape[2] == 4:
+            img = img[:, :, :3]
     return np.ascontiguousarray(img)
 
 
@@ -80,21 +82,22 @@ def render(
         bgr = cv2.addWeighted(overlay, alpha, bgr, 1.0 - alpha, 0.0)
 
     # 2) crosshair along the ellipse axes ---------------------------------- #
-    if draw_crosshair and axes_half[0] > 0 and axes_half[1] > 0:
-        # Four axis vertices via the ellipse's own parametric frame.
-        pts = cv2.ellipse2Poly(center, axes_half, angle_i, 0, 360, 90)
-        if len(pts) >= 4:
-            t = int(config.OVERLAY["crosshair_thickness"])
-            cv2.line(bgr, tuple(pts[0]), tuple(pts[2]), cross_bgr, t, cv2.LINE_AA)
-            cv2.line(bgr, tuple(pts[1]), tuple(pts[3]), cross_bgr, t, cv2.LINE_AA)
+    if axes_half[0] > 0 and axes_half[1] > 0:
+        if draw_crosshair:
+            # Four axis vertices via the ellipse's own parametric frame.
+            pts = cv2.ellipse2Poly(center, axes_half, angle_i, 0, 360, 90)
+            if len(pts) >= 4:
+                t = int(config.OVERLAY["crosshair_thickness"])
+                cv2.line(bgr, tuple(pts[0]), tuple(pts[2]), cross_bgr, t, cv2.LINE_AA)
+                cv2.line(bgr, tuple(pts[1]), tuple(pts[3]), cross_bgr, t, cv2.LINE_AA)
 
-    # 3) ellipse contour --------------------------------------------------- #
-    cv2.ellipse(
-        bgr, center, axes_half, angle_i, 0, 360,
-        ell_bgr, int(config.OVERLAY["ellipse_thickness"]), cv2.LINE_AA,
-    )
+        # 3) ellipse contour --------------------------------------------------- #
+        cv2.ellipse(
+            bgr, center, axes_half, angle_i, 0, 360,
+            ell_bgr, int(config.OVERLAY["ellipse_thickness"]), cv2.LINE_AA,
+        )
 
-    # 4) centroid marker --------------------------------------------------- #
-    cv2.circle(bgr, center, 3, ell_bgr, -1, cv2.LINE_AA)
+        # 4) centroid marker --------------------------------------------------- #
+        cv2.circle(bgr, center, 3, ell_bgr, -1, cv2.LINE_AA)
 
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)

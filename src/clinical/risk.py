@@ -14,16 +14,9 @@ Colors come from ``config.RISK_COLORS`` so the palette lives in one place.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
-# Allow "import config" whether run as a package or from the project root.
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-import config  # noqa: E402
+import config
 
 
 @dataclass(frozen=True)

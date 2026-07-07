@@ -8,15 +8,8 @@ visual language is fully controlled (not the stock widget look).
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-import config  # noqa: E402
-from clinical.risk import RiskAssessment  # noqa: E402
+import config
+from clinical.risk import RiskAssessment
 
 
 # --------------------------------------------------------------------------- #

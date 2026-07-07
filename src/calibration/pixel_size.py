@@ -15,18 +15,13 @@ the returned source so the UI can warn the user.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-import config  # noqa: E402
+import config
 
 
 @dataclass(frozen=True)
@@ -99,10 +94,13 @@ def _load_hc18_table() -> dict[str, list[tuple[str, float]]]:
         return table
 
     # Match each CSV file to a dataset identifier ("training", "test")
-    csv_mapping = {
-        "training": config.DATA_DIR / "training_set_pixel_size_and_HC.csv",
-        "test": config.DATA_DIR / "test_set_pixel_size.csv",
-    }
+    csv_mapping = {}
+    for csv_path in config.HC18_PIXEL_SIZE_CSVS:
+        name_lower = csv_path.name.lower()
+        if "training" in name_lower:
+            csv_mapping["training"] = csv_path
+        elif "test" in name_lower:
+            csv_mapping["test"] = csv_path
 
     for dataset_name, csv_path in csv_mapping.items():
         if not Path(csv_path).exists():

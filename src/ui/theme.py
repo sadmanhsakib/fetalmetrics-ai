@@ -7,6 +7,8 @@ stylesheet. Keeping this here means ``app.py`` stays about layout, not chrome.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 import config
@@ -30,10 +32,17 @@ def configure_page() -> None:
     )
 
 
+@st.cache_data
+def _load_stylesheet(css_path_str: str) -> str:
+    path = Path(css_path_str)
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    return ""
+
+
 def inject_styles() -> None:
     """Inject fonts + the stylesheet into the page."""
     st.markdown(_FONTS, unsafe_allow_html=True)
-    css_path = config.ASSETS_DIR / "styles.css"
-    if css_path.exists():
-        st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>",
-                    unsafe_allow_html=True)
+    css_str = _load_stylesheet(str(config.ASSETS_DIR / "styles.css"))
+    if css_str:
+        st.markdown(f"<style>{css_str}</style>", unsafe_allow_html=True)

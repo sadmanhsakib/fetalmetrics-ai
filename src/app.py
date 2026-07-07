@@ -94,11 +94,12 @@ def render_sidebar() -> dict:
         st.markdown(C.section_label("4 · Calibration"), unsafe_allow_html=True)
         auto_hint = ""
         default_val = float(config.DEFAULT_PIXEL_SIZE_MM)
+        image_rgb = None
         if uploaded is not None:
             try:
-                img_rgb = load_image(uploaded)
-                uploaded.seek(0)  # Reset buffer so render_results can re-read the file
-                hc18 = calib.lookup_hc18(uploaded.name, img_rgb)
+                uploaded.seek(0)
+                image_rgb = load_image(uploaded)
+                hc18 = calib.lookup_hc18(uploaded.name, image_rgb)
             except Exception:
                 hc18 = calib.lookup_hc18(uploaded.name)
             if hc18:
@@ -123,6 +124,7 @@ def render_sidebar() -> dict:
 
     return {
         "uploaded": uploaded,
+        "image_rgb": image_rgb,
         "ga_weeks": ga_weeks,
         "model_key": model_key,
         "manual_mm_per_px": manual_mm_per_px,
@@ -195,8 +197,11 @@ def render_missing_weights(model_key: str) -> None:
 
 
 def render_results(state: dict) -> None:
-    state["uploaded"].seek(0)  # Ensure file pointer is at start (sidebar may have read it)
-    image = load_image(state["uploaded"])
+    image = state["image_rgb"]
+    if image is None:
+        state["uploaded"].seek(0)
+        image = load_image(state["uploaded"])
+
     cal = calib.resolve(
         filename=state["uploaded"].name,
         image_rgb=image,
@@ -219,6 +224,8 @@ def render_results(state: dict) -> None:
         with st.spinner(f"Segmenting with {segmenter.name}…"):
             seg = segmenter.predict(image)
     except Exception as exc:  # noqa: BLE001 — surface export mismatches to the user
+        import traceback
+        traceback.print_exc()
         st.error(
             f"Inference failed for {segmenter.name}: `{exc}`\n\n"
             "This usually means the ONNX input size / normalization / output "

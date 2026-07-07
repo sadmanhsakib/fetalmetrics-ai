@@ -42,7 +42,12 @@ class SegmentationResult:
 # numpy helpers (shared)
 # --------------------------------------------------------------------------- #
 def sigmoid(x: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-x))
+    # Stable sigmoid to avoid overflow/underflow warnings in exp
+    return np.where(
+        x >= 0,
+        1.0 / (1.0 + np.exp(-x)),
+        np.exp(x) / (1.0 + np.exp(x))
+    )
 
 
 def letterbox(

@@ -67,11 +67,13 @@ class YOLOv8Segmenter(Segmenter):
         cls_scores = preds[:, 4:4 + nc]
         coeffs = preds[:, 4 + nc:]
         conf = cls_scores.max(axis=1)
+        if len(conf) == 0:
+            return SegmentationResult(empty, elapsed_ms, self.name, found=False, confidence=0.0)
 
         keep = conf >= self.spec.conf_threshold
         if not np.any(keep):
             return SegmentationResult(empty, elapsed_ms, self.name,
-                                      found=False, confidence=float(conf.max()))
+                                       found=False, confidence=float(conf.max()))
 
         boxes, coeffs, conf = boxes[keep], coeffs[keep], conf[keep]
 

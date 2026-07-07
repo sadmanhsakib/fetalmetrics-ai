@@ -21,17 +21,11 @@ lazily only inside the functions that need it.
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-import config  # noqa: E402
+import config
 
 
 # --------------------------------------------------------------------------- #
@@ -135,10 +129,16 @@ def measure_hc(mask: np.ndarray, mm_per_px: float) -> HCResult | None:
     if contour is None:
         return None
 
-    (cx, cy), (axis_a, axis_b), angle = cv2.fitEllipse(contour)
+    try:
+        (cx, cy), (axis_a, axis_b), angle = cv2.fitEllipse(contour)
+    except cv2.error:
+        return None
 
     # cv2 does not guarantee ordering; enforce major >= minor.
     major_px, minor_px = (axis_a, axis_b) if axis_a >= axis_b else (axis_b, axis_a)
+
+    if major_px <= 0 or minor_px <= 0:
+        return None
 
     semi_major_mm = (major_px / 2.0) * mm_per_px
     semi_minor_mm = (minor_px / 2.0) * mm_per_px

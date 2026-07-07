@@ -36,14 +36,19 @@ class PercentileResult:
 
     @property
     def percentile_label(self) -> str:
-        """Human-friendly percentile, e.g. '18.4th'."""
+        """Human-friendly percentile, e.g. '18.4th' or '21st'."""
         p = self.percentile
-        # ordinal suffix
-        if 10 <= int(p) % 100 <= 13:
-            suffix = "th"
+        # If it's very close to an integer, format as integer and use correct suffix
+        if abs(p - round(p)) < 0.05:
+            val_int = int(round(p))
+            if 10 <= val_int % 100 <= 13:
+                suffix = "th"
+            else:
+                suffix = {1: "st", 2: "nd", 3: "rd"}.get(val_int % 10, "th")
+            return f"{val_int}{suffix}"
         else:
-            suffix = {1: "st", 2: "nd", 3: "rd"}.get(int(round(p)) % 10, "th")
-        return f"{p:.1f}{suffix}"
+            # Decimals always take "th"
+            return f"{p:.1f}th"
 
 
 def evaluate(hc_mm: float, ga_weeks: float) -> PercentileResult:
