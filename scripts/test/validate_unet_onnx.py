@@ -9,10 +9,6 @@ import onnxruntime as ort
 
 from pyprojroot import here
 
-# Set random seed for reproducibility
-random.seed(67)
-np.random.seed(67)
-
 # ============================================================================
 # Metric Calculation Functions
 # ============================================================================

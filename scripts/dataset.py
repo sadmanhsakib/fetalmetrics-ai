@@ -34,4 +34,4 @@ def upload_dataset(handle, local_dataset_dir, is_new: bool = False):
 
 
 if __name__ == "__main__":
-    fetch_dataset()
+    upload_dataset()
