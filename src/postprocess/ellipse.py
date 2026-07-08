@@ -32,7 +32,7 @@ import config
 # Pure geometry (no OpenCV)
 # --------------------------------------------------------------------------- #
 def ramanujan_perimeter(semi_major: float, semi_minor: float) -> float:
-    """Ellipse perimeter via Ramanujan's second approximation.
+    """Compute the perimeter of an ellipse using Ramanujan's second approximation.
 
     ``C ≈ π (a + b) [ 1 + 3h / (10 + sqrt(4 - 3h)) ]`` with
     ``h = ((a - b) / (a + b))**2``. Accurate to a few ppm for realistic fetal
@@ -40,8 +40,15 @@ def ramanujan_perimeter(semi_major: float, semi_minor: float) -> float:
 
     Parameters
     ----------
-    semi_major, semi_minor:
-        Semi-axes in any consistent unit; the result is in that same unit.
+    semi_major:
+        Semi-major axis length.
+    semi_minor:
+        Semi-minor axis length.
+
+    Returns
+    -------
+    float
+        The estimated perimeter. Units are the same as the input axes.
     """
     a = float(semi_major)
     b = float(semi_minor)
@@ -53,20 +60,45 @@ def ramanujan_perimeter(semi_major: float, semi_minor: float) -> float:
 
 @dataclass(frozen=True)
 class HCResult:
-    """A calibrated head-circumference measurement and its geometry."""
+    """A calibrated head-circumference measurement and its geometry.
+    
+    Attributes
+    ----------
+    hc_mm:
+        Head circumference in millimetres.
+    hc_px:
+        Head circumference in pixels.
+    center_px:
+        Centroid coordinates (x, y) in pixels.
+    major_axis_px:
+        Full major-axis length in pixels.
+    minor_axis_px:
+        Full minor-axis length in pixels.
+    angle_deg:
+        Orientation of the major axis in degrees.
+    major_axis_mm:
+        Full major-axis length in millimetres.
+    minor_axis_mm:
+        Full minor-axis length in millimetres.
+    mm_per_px:
+        Physical scale (millimetres per pixel) used for calibration.
+    contour_area_px:
+        Area of the contour used for fitting, in squared pixels.
+    ellipse_cv:
+        Exact cv2.fitEllipse output tuple ``((cx, cy), (axis_a, axis_b), angle)``
+        kept so the overlay draws the true fitted ellipse and an axis-aligned crosshair.
+    """
 
     hc_mm: float
     hc_px: float
     center_px: tuple[float, float]
-    major_axis_px: float          # full major-axis length (px)
-    minor_axis_px: float          # full minor-axis length (px)
-    angle_deg: float              # orientation of the major axis
+    major_axis_px: float          
+    minor_axis_px: float          
+    angle_deg: float              
     major_axis_mm: float
     minor_axis_mm: float
     mm_per_px: float
     contour_area_px: float
-    # Exact cv2.fitEllipse output ((cx, cy), (axis_a, axis_b), angle) kept so the
-    # overlay draws the true fitted ellipse and an axis-aligned crosshair.
     ellipse_cv: tuple[tuple[float, float], tuple[float, float], float] = (
         (0.0, 0.0), (0.0, 0.0), 0.0
     )
@@ -76,7 +108,18 @@ class HCResult:
 # OpenCV-backed steps
 # --------------------------------------------------------------------------- #
 def _clean_mask(mask: np.ndarray) -> np.ndarray:
-    """Binarize + morphologically close a raw mask so contours are solid."""
+    """Binarize and morphologically close a raw mask to ensure solid contours.
+    
+    Parameters
+    ----------
+    mask:
+        Binary or probability mask to clean.
+        
+    Returns
+    -------
+    numpy.ndarray
+        Cleaned, solid binary mask.
+    """
     import cv2
 
     binary = (mask > 0).astype(np.uint8) * 255
@@ -90,7 +133,16 @@ def _clean_mask(mask: np.ndarray) -> np.ndarray:
 def largest_contour(mask: np.ndarray):
     """Return the largest external contour meeting the min-area threshold.
 
-    Returns ``None`` when no contour is large enough to be a skull.
+    Parameters
+    ----------
+    mask:
+        Binary mask containing the region of interest.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        The largest valid contour found, or ``None`` if no contour is large
+        enough to represent a fetal skull.
     """
     import cv2
 
@@ -103,25 +155,26 @@ def largest_contour(mask: np.ndarray):
     min_area = config.POSTPROCESS["min_area_frac"] * img_area
     biggest = max(contours, key=cv2.contourArea)
     if cv2.contourArea(biggest) < min_area or len(biggest) < 5:
-        # fitEllipse needs >= 5 points.
+        # cv2.fitEllipse requires at least 5 points.
         return None
     return biggest
 
 
 def measure_hc(mask: np.ndarray, mm_per_px: float) -> HCResult | None:
-    """Fit an ellipse to the skull mask and return the calibrated HC.
+    """Fit an ellipse to the skull mask and return the calibrated head circumference.
 
     Parameters
     ----------
     mask:
         2-D array; non-zero pixels are the predicted fetal skull.
     mm_per_px:
-        Physical scale (millimetres per pixel) from calibration.
+        Physical scale (millimetres per pixel) derived from image calibration.
 
     Returns
     -------
     HCResult | None
-        ``None`` if no ellipse could be fitted.
+        The computed head circumference result, or ``None`` if no valid ellipse
+        could be fitted.
     """
     import cv2
 
@@ -134,7 +187,7 @@ def measure_hc(mask: np.ndarray, mm_per_px: float) -> HCResult | None:
     except cv2.error:
         return None
 
-    # cv2 does not guarantee ordering; enforce major >= minor.
+    # cv2.fitEllipse does not guarantee ordering; enforce major >= minor axis.
     major_px, minor_px = (axis_a, axis_b) if axis_a >= axis_b else (axis_b, axis_a)
 
     if major_px <= 0 or minor_px <= 0:

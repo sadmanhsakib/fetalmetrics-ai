@@ -3,11 +3,11 @@ components.py
 =============
 Pure HTML builders for the designed parts of the interface. Each returns a
 string rendered with ``st.markdown(..., unsafe_allow_html=True)`` so the visual
-language is fully controlled rather than the stock widget look.
+language is fully controlled rather than relying on the stock widget look.
 
 This module is deliberately free of any Streamlit import so the builders can be
-unit-tested headlessly. Decorative emoji are replaced with precise inline SVG
-marks (stroke = ``currentColor``) to keep the clinical, non-generic register.
+unit-tested headlessly. Decorative emojis are replaced with precise inline SVG
+marks (stroke = ``currentColor``) to maintain a clinical, non-generic register.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from clinical.risk import RiskAssessment
 
 
 # --------------------------------------------------------------------------- #
-# Inline SVG icon set (inherit colour via currentColor)
+# Inline SVG icon set (inherit color via currentColor)
 # --------------------------------------------------------------------------- #
 ICONS: dict[str, str] = {
     # head-circumference caliper — the product mark
@@ -65,7 +65,18 @@ ICONS: dict[str, str] = {
 
 
 def icon(name: str) -> str:
-    """Return the inline SVG markup for ``name`` (empty string if unknown)."""
+    """Return the inline SVG markup for ``name``, or an empty string if unknown.
+    
+    Parameters
+    ----------
+    name:
+        Key identifying the requested SVG icon.
+        
+    Returns
+    -------
+    str
+        Raw SVG string for inline embedding.
+    """
     return ICONS.get(name, "")
 
 
@@ -73,7 +84,8 @@ def icon(name: str) -> str:
 # Header + safety
 # --------------------------------------------------------------------------- #
 def header_html() -> str:
-    name_main = config.APP_NAME.split("-")[0].strip()  # "Fetal Metrics"
+    """Return the main application header HTML, including branding and methodology link."""
+    name_main = config.APP_NAME.split("-")[0].strip()  # E.g., "FetalMetrics"
     return f"""
     <div class="fm-header">
       <div class="fm-logo">{ICONS['caliper']}</div>
@@ -92,6 +104,7 @@ def header_html() -> str:
 
 
 def safety_banner_html() -> str:
+    """Return the global clinical safety warning banner HTML."""
     return f"""
     <div class="fm-safety">
       <div class="ico">{ICONS['warning']}</div>
@@ -102,10 +115,12 @@ def safety_banner_html() -> str:
 
 
 def section_label(text: str) -> str:
+    """Return a styled section label HTML snippet."""
     return f'<div class="fm-section">{text}</div>'
 
 
 def image_caption(title: str, right: str = "") -> str:
+    """Return a styled caption HTML block intended for placement below images."""
     r = f'<span class="dot">{right}</span>' if right else ""
     return f'<div class="fm-imgcap"><span>{title}</span>{r}</div>'
 
@@ -114,6 +129,7 @@ def image_caption(title: str, right: str = "") -> str:
 # Sidebar brand (paired with the nav in theme.render_sidebar_nav)
 # --------------------------------------------------------------------------- #
 def sidebar_brand_html() -> str:
+    """Return the branding block HTML intended for the sidebar top."""
     name_main = config.APP_NAME.split("-")[0].strip().replace(" ", "")
     return f"""
     <div class="fm-side-brand">
@@ -127,6 +143,24 @@ def sidebar_brand_html() -> str:
 # Dashboard metric cards
 # --------------------------------------------------------------------------- #
 def metric_card_html(label: str, value: str, unit: str = "", sub_html: str = "") -> str:
+    """Return an HTML metric card displaying a primary value and secondary subtitle.
+    
+    Parameters
+    ----------
+    label:
+        Title of the metric.
+    value:
+        The primary data value to display.
+    unit:
+        Optional unit string appended after the value.
+    sub_html:
+        Optional secondary description HTML string.
+        
+    Returns
+    -------
+    str
+        Renderable HTML string for the metric card.
+    """
     unit_html = f'<span class="unit">{unit}</span>' if unit else ""
     sub = f'<div class="sub">{sub_html}</div>' if sub_html else ""
     return f"""
@@ -139,7 +173,11 @@ def metric_card_html(label: str, value: str, unit: str = "", sub_html: str = "")
 
 
 def risk_card_html(risk: RiskAssessment) -> str:
-    """Risk card. Colour + a status dot carry the meaning (no emoji)."""
+    """Return an HTML risk card displaying the categorized risk assessment.
+    
+    Color assignments and visual markers correspond to the risk tier. No emojis
+    are used; status is conveyed through a dot and background colors.
+    """
     return f"""
     <div class="fm-risk" style="--rk:{risk.color}; --rk-soft:{risk.soft};">
       <div class="top">
@@ -156,8 +194,15 @@ def risk_card_html(risk: RiskAssessment) -> str:
 # Percentile gauge
 # --------------------------------------------------------------------------- #
 def gauge_html(percentile: float) -> str:
-    """Zoned distribution bar with a marker at the measured percentile."""
-    pos = max(0.8, min(99.2, percentile))  # keep marker visible at extremes
+    """Return an HTML zoned distribution bar with a marker at the calculated percentile.
+    
+    Parameters
+    ----------
+    percentile:
+        Growth percentile (0–100) to mark. The visual position is clamped
+        slightly away from the extremes to keep the marker visible.
+    """
+    pos = max(0.8, min(99.2, percentile))  # Keep marker visible at extremes.
 
     def tick(p: float, label: str) -> str:
         return (f'<div class="tick" style="left:{p}%;">'
@@ -187,6 +232,11 @@ def gauge_html(percentile: float) -> str:
 # Timing / provenance strip
 # --------------------------------------------------------------------------- #
 def timing_strip_html(items: list[tuple[str, str]]) -> str:
+    """Return an HTML horizontal readout strip displaying key-value pairs.
+    
+    Useful for conveying metadata like inference time, calibration settings,
+    and reference sources compactly.
+    """
     parts = []
     for i, (k, v) in enumerate(items):
         if i:
@@ -199,6 +249,7 @@ def timing_strip_html(items: list[tuple[str, str]]) -> str:
 # Empty state
 # --------------------------------------------------------------------------- #
 def empty_state_html() -> str:
+    """Return the HTML for the initial empty state shown before an image is uploaded."""
     return f"""
     <div class="fm-empty">
       <div class="big">{ICONS['scan']}</div>

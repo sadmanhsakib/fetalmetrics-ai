@@ -2,12 +2,13 @@
 theme.py
 ========
 Page configuration, font loading, stylesheet injection and the shared sidebar
-navigation. Keeping the chrome here means ``app.py`` and the methodology page
-stay about content, not plumbing.
+navigation. Keeping the chrome routing here ensures ``app.py`` and the
+Methodology page remain focused on content, not structural plumbing.
 
 Design register: clinical-light "medical instrument" — Inter for the interface,
-IBM Plex Mono for numeric readouts, Source Serif 4 for the long methodology
-document. The full visual system lives in ``assets/styles.css``.
+IBM Plex Mono for numeric readouts, and Source Serif 4 for the long-form
+Methodology document. The complete visual system is defined in
+``assets/styles.css``.
 """
 
 from __future__ import annotations
@@ -33,7 +34,16 @@ _FONTS = (
 
 
 def configure_page(active: str = "analyze") -> None:
-    """Set Streamlit page config. Call once, first thing on every page."""
+    """Initialize the Streamlit page configuration.
+    
+    Must be called exactly once, as the very first Streamlit command on
+    every page.
+    
+    Parameters
+    ----------
+    active:
+        Identifier for the currently active page.
+    """
     st.set_page_config(
         page_title=f"{config.APP_NAME} — {config.APP_TAGLINE}",
         page_icon="🩺",
@@ -44,6 +54,10 @@ def configure_page(active: str = "analyze") -> None:
 
 @st.cache_data
 def _load_stylesheet(css_path_str: str) -> str:
+    """Load the CSS stylesheet from disk.
+    
+    Cached to prevent repeated disk I/O across page re-runs.
+    """
     path = Path(css_path_str)
     if path.exists():
         return path.read_text(encoding="utf-8")
@@ -51,7 +65,11 @@ def _load_stylesheet(css_path_str: str) -> str:
 
 
 def inject_styles() -> None:
-    """Inject fonts + the project stylesheet into the current page."""
+    """Inject required web fonts and the project stylesheet into the current page.
+    
+    Called near the top of the script so styles apply to subsequently rendered
+    elements without a flash of unstyled content.
+    """
     st.markdown(_FONTS, unsafe_allow_html=True)
     css_str = _load_stylesheet(str(config.ASSETS_DIR / "styles.css"))
     if css_str:
@@ -59,10 +77,15 @@ def inject_styles() -> None:
 
 
 def render_sidebar_nav(active: str = "analyze") -> None:
-    """Render the shared brand lockup + controlled page navigation.
+    """Render the shared brand lock-up and controlled page navigation in the sidebar.
 
-    ``active`` is "analyze" or "methodology" and only affects which nav item is
-    visually current (Streamlit also sets ``aria-current`` automatically).
+    Parameters
+    ----------
+    active:
+        Indicates the currently active page view (``"analyze"`` or
+        ``"methodology"``). Determines which navigation item is visually
+        highlighted as current. (Streamlit also sets ``aria-current``
+        automatically internally.)
     """
     with st.sidebar:
         st.markdown(C.sidebar_brand_html(), unsafe_allow_html=True)

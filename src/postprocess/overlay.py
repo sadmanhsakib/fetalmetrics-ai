@@ -21,7 +21,18 @@ from postprocess.ellipse import HCResult
 
 
 def _to_rgb_uint8(image: np.ndarray) -> np.ndarray:
-    """Coerce any grayscale/RGB/RGBA array to a contiguous RGB uint8 image."""
+    """Coerce any grayscale, RGB, or RGBA array to a contiguous RGB uint8 image.
+    
+    Parameters
+    ----------
+    image:
+        Input image array to be coerced.
+        
+    Returns
+    -------
+    numpy.ndarray
+        RGB uint8 contiguous image array.
+    """
     img = np.asarray(image)
     if np.issubdtype(img.dtype, np.floating):
         if img.size > 0 and img.max() <= 1.0:
@@ -48,16 +59,25 @@ def render(
     draw_mask_fill: bool = True,
     draw_crosshair: bool = True,
 ) -> np.ndarray:
-    """Return an RGB image with the ellipse, crosshair and optional mask fill.
+    """Return an RGB image superimposed with the ellipse, crosshair and optional mask fill.
 
     Parameters
     ----------
     image:
         Original ultrasound image (grayscale or RGB).
     result:
-        Output of ``ellipse.measure_hc`` (carries the exact fitted ellipse).
+        Output of ``ellipse.measure_hc``, which carries the exact fitted ellipse.
     mask:
         Optional binary skull mask, used only for the translucent fill.
+    draw_mask_fill:
+        Whether to draw a translucent overlay inside the segmentation mask.
+    draw_crosshair:
+        Whether to draw crosshair lines indicating the major and minor axes.
+
+    Returns
+    -------
+    numpy.ndarray
+        Composite RGB image array ready for display.
     """
     import cv2
 

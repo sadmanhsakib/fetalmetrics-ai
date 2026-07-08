@@ -1,16 +1,16 @@
 """
 pages/1_Methodology.py
 ======================
-The methodology as its own page (Streamlit multipage). It is reachable from the
-sidebar navigation and from the prominent "Methodology" link in the homepage
-masthead/empty state.
+The methodology as its own page (Streamlit multipage format). It is reachable
+from the sidebar navigation and from the prominent "Methodology" link in the
+homepage masthead/empty state.
 
 The document is written in a medical-journal register and — importantly — pulls
-its numbers directly from the live clinical modules (`reference_hadlock`,
-`config`, `percentiles`). The Hadlock reference chart, the SD model, the risk
-thresholds and the model export specs shown below therefore always match the
-code that actually runs; editing a coefficient in one place updates the
-methodology automatically.
+its parameter figures directly from the live clinical modules (``reference_hadlock``,
+``config``, ``percentiles``). The Hadlock reference chart, the standard deviation
+model, the risk thresholds, and the model export specifications shown below
+therefore always match the code that actually runs; editing a configuration
+value in one place updates the methodology page automatically.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ theme.configure_page("methodology")
 theme.inject_styles()
 theme.render_sidebar_nav("methodology")
 
-import streamlit as st  # noqa: E402  (after set_page_config, by design)
+import streamlit as st  # noqa: E402  (must be after set_page_config)
 
 
 # --------------------------------------------------------------------------- #
@@ -43,7 +43,7 @@ rc = config.RISK_COLORS
 ga_lo, ga_hi = int(ref.GA_MIN_WEEKS), int(ref.GA_MAX_WEEKS)
 sd_lo, sd_hi = ref.sd_hc_mm(ga_lo), ref.sd_hc_mm(ga_hi)
 
-# Hadlock reference chart (integer completed weeks) — generated from the code.
+# Hadlock reference chart (integer completed weeks) — generated dynamically from the code.
 _ref_rows = []
 for wk in range(ga_lo, ga_hi + 1):
     s = ref.reference_summary(wk)
@@ -53,7 +53,7 @@ for wk in range(ga_lo, ga_hi + 1):
     )
 ref_rows_html = "".join(_ref_rows)
 
-# Risk-band rows, coloured by the same tokens the app uses.
+# Risk-band rows, coloured by the same semantic tokens the application uses.
 bands = [
     (rc["HIGH"]["solid"], f"&lt; {hi:.0f}th", "High Risk — Screening Alert Threshold",
      "Identifies growth profiles residing below the 10th percentile, which warrants screening for "
@@ -76,7 +76,7 @@ bands_html = "".join(
 
 
 # --------------------------------------------------------------------------- #
-# Document
+# Document Output
 # --------------------------------------------------------------------------- #
 DOC = f"""
 <div class="doc">

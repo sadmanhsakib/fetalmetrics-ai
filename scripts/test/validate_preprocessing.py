@@ -1,15 +1,37 @@
-"""Comprehensive validation of HC18 preprocessing output.
-
-This script validates that preprocessed data meets quality standards:
-  - Masks are filled solid ellipses (not hollow outlines)
-  - Coverage is 20-40% (typical for fetal head in ultrasound)
-  - Masks are binary (0/255 only)
-  - Images are RGB format
-  - YOLO labels have proper format and normalized coordinates
-  - Paired files exist across all formats
-  - Train/val splits are consistent
-  - No data leakage between splits
 """
+validate_preprocessing.py
+=========================
+Comprehensive structural and quality validation of the HC18 preprocessing
+output produced by ``scripts/preprocess.py``.
+
+Checks performed
+----------------
+1. **File structure and counts** — Verify that image, mask, and label counts
+   are balanced across both FastAI and YOLO output trees.
+2. **Split consistency** — Confirm there is no data leakage between the
+   train and validation splits, and that both model format trees use identical
+   splits.
+3. **Mask quality** — Sample up to 10 training masks and verify they are
+   binary (0/255 only), solid (not hollow outlines), and within the expected
+   20–40 % foreground-coverage range for a fetal head in a standard ultrasound
+   frame.
+4. **Image format** — Confirm images are 3-channel RGB (grayscale ultrasound
+   converted to RGB during preprocessing).
+5. **YOLO label format** — Validate class ID, minimum polygon point count,
+   and that all coordinates are normalised to [0, 1].
+6. **Metadata artefacts** — Check for the presence and basic correctness of
+   ``split.csv``, ``pixel_metadata.json``, and ``data.yaml``.
+7. **Visual spot-check** — Display three random image-mask overlay pairs in
+   an OpenCV window for a human sanity check (press any key to advance,
+   ESC to skip).
+
+Usage
+-----
+    python scripts/test/validate_preprocessing.py
+"""
+
+from __future__ import annotations
+
 import json
 import random
 
@@ -18,6 +40,9 @@ import numpy as np
 import pandas as pd
 from pyprojroot import here
 
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 OUTPUT_DIR = here("data/preprocessed")
 IMG_DIR = OUTPUT_DIR / "fastai" / "images" / "train"
 MASK_DIR = OUTPUT_DIR / "fastai" / "masks" / "train"
@@ -26,9 +51,9 @@ print("=" * 70)
 print("HC18 PREPROCESSING VALIDATION")
 print("=" * 70)
 
-# ============================================================================
-# 1. FILE STRUCTURE & COUNTS
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 1. File structure and counts
+# ---------------------------------------------------------------------------
 print("\n[1] FILE STRUCTURE & COUNTS")
 print("-" * 70)
 
@@ -42,35 +67,46 @@ val_img_yolo = list((OUTPUT_DIR / "yolo" / "images" / "val").glob("*.png"))
 train_label_yolo = list((OUTPUT_DIR / "yolo" / "labels" / "train").glob("*.txt"))
 val_label_yolo = list((OUTPUT_DIR / "yolo" / "labels" / "val").glob("*.txt"))
 
-print(f"FastAI train images: {len(train_img_fastai)}")
-print(f"FastAI train masks:  {len(train_mask_fastai)}")
-print(f"FastAI val images:   {len(val_img_fastai)}")
-print(f"FastAI val masks:    {len(val_mask_fastai)}")
-print(f"YOLO train images:   {len(train_img_yolo)}")
-print(f"YOLO train labels:   {len(train_label_yolo)}")
-print(f"YOLO val images:     {len(val_img_yolo)}")
-print(f"YOLO val labels:     {len(val_label_yolo)}")
+print(f"FastAI train images : {len(train_img_fastai)}")
+print(f"FastAI train masks  : {len(train_mask_fastai)}")
+print(f"FastAI val images   : {len(val_img_fastai)}")
+print(f"FastAI val masks    : {len(val_mask_fastai)}")
+print(f"YOLO train images   : {len(train_img_yolo)}")
+print(f"YOLO train labels   : {len(train_label_yolo)}")
+print(f"YOLO val images     : {len(val_img_yolo)}")
+print(f"YOLO val labels     : {len(val_label_yolo)}")
 
-# Check counts match
-issues = []
+issues: list[str] = []
 if len(train_img_fastai) != len(train_mask_fastai):
-    issues.append(f"❌ FastAI train: {len(train_img_fastai)} images ≠ {len(train_mask_fastai)} masks")
+    issues.append(
+        f"FastAI train mismatch: {len(train_img_fastai)} images vs "
+        f"{len(train_mask_fastai)} masks"
+    )
 if len(val_img_fastai) != len(val_mask_fastai):
-    issues.append(f"❌ FastAI val: {len(val_img_fastai)} images ≠ {len(val_mask_fastai)} masks")
+    issues.append(
+        f"FastAI val mismatch: {len(val_img_fastai)} images vs "
+        f"{len(val_mask_fastai)} masks"
+    )
 if len(train_img_yolo) != len(train_label_yolo):
-    issues.append(f"❌ YOLO train: {len(train_img_yolo)} images ≠ {len(train_label_yolo)} labels")
+    issues.append(
+        f"YOLO train mismatch: {len(train_img_yolo)} images vs "
+        f"{len(train_label_yolo)} labels"
+    )
 if len(val_img_yolo) != len(val_label_yolo):
-    issues.append(f"❌ YOLO val: {len(val_img_yolo)} images ≠ {len(val_label_yolo)} labels")
+    issues.append(
+        f"YOLO val mismatch: {len(val_img_yolo)} images vs "
+        f"{len(val_label_yolo)} labels"
+    )
 
 if issues:
     for issue in issues:
-        print(issue)
+        print(f"  FAIL: {issue}")
 else:
-    print("✅ All file counts match")
+    print("All file counts balanced.")
 
-# ============================================================================
-# 2. SPLIT CONSISTENCY
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 2. Split consistency
+# ---------------------------------------------------------------------------
 print("\n[2] SPLIT CONSISTENCY")
 print("-" * 70)
 
@@ -79,225 +115,238 @@ val_stems_fastai = {p.stem for p in val_img_fastai}
 train_stems_yolo = {p.stem for p in train_img_yolo}
 val_stems_yolo = {p.stem for p in val_img_yolo}
 
-# Check no overlap between train/val
+# Data leakage check: no filename should appear in both splits.
 overlap = train_stems_fastai & val_stems_fastai
 if overlap:
-    print(f"❌ DATA LEAKAGE: {len(overlap)} files in both train and val: {list(overlap)[:5]}")
+    print(
+        f"  DATA LEAKAGE: {len(overlap)} file(s) present in both train and "
+        f"val: {list(overlap)[:5]}"
+    )
 else:
-    print("✅ No overlap between train and val splits")
+    print("No overlap between train and val splits.")
 
-# Check FastAI and YOLO have same splits
+# Cross-format consistency: FastAI and YOLO trees must use identical splits.
 if train_stems_fastai != train_stems_yolo:
     diff = train_stems_fastai ^ train_stems_yolo
-    print(f"❌ Train splits differ between FastAI and YOLO: {len(diff)} files differ")
+    print(f"  Train split differs between FastAI and YOLO: {len(diff)} file(s)")
 else:
-    print("✅ Train splits match between FastAI and YOLO")
+    print("Train splits consistent between FastAI and YOLO.")
 
 if val_stems_fastai != val_stems_yolo:
     diff = val_stems_fastai ^ val_stems_yolo
-    print(f"❌ Val splits differ between FastAI and YOLO: {len(diff)} files differ")
+    print(f"  Val split differs between FastAI and YOLO: {len(diff)} file(s)")
 else:
-    print("✅ Val splits match between FastAI and YOLO")
+    print("Val splits consistent between FastAI and YOLO.")
 
-# ============================================================================
-# 3. MASK QUALITY CHECKS
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 3. Mask quality checks
+# ---------------------------------------------------------------------------
 print("\n[3] MASK QUALITY CHECKS")
 print("-" * 70)
 
 samples = random.sample(train_img_fastai, min(10, len(train_img_fastai)))
-mask_issues = []
-coverage_values = []
-hollow_masks = []
+mask_issues: list[str] = []
+hollow_masks: list[str] = []
+coverage_values: list[float] = []
 
 for img_path in samples:
     mask_path = MASK_DIR / img_path.name
     mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-    
+
     if mask is None:
-        mask_issues.append(f"❌ {img_path.name}: Failed to load mask")
+        mask_issues.append(f"{img_path.name}: failed to load mask")
         continue
-    
-    # Check binary (only 0 and 255)
+
+    # Masks must be strictly binary (0 and 255 only).
     unique_vals = np.unique(mask)
-    if not np.array_equal(unique_vals, [0, 255]) and not np.array_equal(unique_vals, [0]) and not np.array_equal(unique_vals, [255]):
-        if len(unique_vals) > 2:
-            mask_issues.append(f"❌ {img_path.name}: Not binary! Has values: {unique_vals}")
-    
-    # Calculate coverage
+    if len(unique_vals) > 2:
+        mask_issues.append(
+            f"{img_path.name}: non-binary values detected: {unique_vals}"
+        )
+
     coverage = (mask > 0).sum() / mask.size * 100
     coverage_values.append(coverage)
-    
-    # Check if mask is filled (not hollow outline)
-    # A hollow outline would have very low coverage (<5%)
-    if coverage < 5:
-        hollow_masks.append(f"❌ {img_path.name}: Possibly hollow (coverage={coverage:.1f}%)")
-    
-    # Check expected coverage range (20-40% for fetal head)
-    if coverage < 15 or coverage > 50:
-        mask_issues.append(f"⚠️  {img_path.name}: Coverage {coverage:.1f}% outside typical range (15-50%)")
+
+    # Coverage below 5 % indicates the fill algorithm failed (hollow outline).
+    if coverage < 5.0:
+        hollow_masks.append(
+            f"{img_path.name}: possible hollow outline (coverage={coverage:.1f}%)"
+        )
+
+    # Typical fetal-head foreground coverage is 15–50 % of image area.
+    if coverage < 15.0 or coverage > 50.0:
+        mask_issues.append(
+            f"{img_path.name}: coverage {coverage:.1f}% outside expected range [15%, 50%]"
+        )
 
 if hollow_masks:
-    print("\n⚠️  HOLLOW MASK WARNING:")
+    print("  HOLLOW MASK WARNING — masks should be filled ellipses, not outlines:")
     for h in hollow_masks:
-        print(f"  {h}")
-    print("  → Masks should be FILLED ellipses, not outlines!")
+        print(f"    {h}")
 
 if mask_issues:
-    print("\nMask Issues Found:")
+    print("  Mask issues found:")
     for issue in mask_issues:
-        print(f"  {issue}")
+        print(f"    {issue}")
 else:
-    print("✅ All sampled masks are binary and properly filled")
+    print("All sampled masks are binary and properly filled.")
 
 if coverage_values:
-    print(f"\nMask Coverage Statistics (n={len(coverage_values)}):")
-    print(f"  Mean:   {np.mean(coverage_values):.1f}%")
-    print(f"  Median: {np.median(coverage_values):.1f}%")
-    print(f"  Range:  {np.min(coverage_values):.1f}% - {np.max(coverage_values):.1f}%")
-    print(f"  Expected: 20-40% for fetal head in ultrasound")
+    print(
+        f"\nMask coverage statistics (n={len(coverage_values)}):\n"
+        f"  Mean   : {np.mean(coverage_values):.1f}%\n"
+        f"  Median : {np.median(coverage_values):.1f}%\n"
+        f"  Range  : {np.min(coverage_values):.1f}% – {np.max(coverage_values):.1f}%\n"
+        f"  Expected range: 20–40% for fetal head in standard ultrasound."
+    )
 
-# ============================================================================
-# 4. IMAGE FORMAT CHECKS
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 4. Image format checks
+# ---------------------------------------------------------------------------
 print("\n[4] IMAGE FORMAT CHECKS")
 print("-" * 70)
 
 img_samples = random.sample(train_img_fastai, min(5, len(train_img_fastai)))
-format_issues = []
+format_issues: list[str] = []
 
 for img_path in img_samples:
     img = cv2.imread(str(img_path))
     if img is None:
-        format_issues.append(f"❌ {img_path.name}: Failed to load")
+        format_issues.append(f"{img_path.name}: failed to load")
         continue
-    
-    # Check RGB (should have 3 channels)
-    if len(img.shape) != 3 or img.shape[2] != 3:
-        format_issues.append(f"❌ {img_path.name}: Not RGB! Shape: {img.shape}")
-    
-    # Check all channels are identical (grayscale converted to RGB)
-    if np.array_equal(img[:,:,0], img[:,:,1]) and np.array_equal(img[:,:,1], img[:,:,2]):
-        pass  # Expected - grayscale ultrasound converted to RGB
-    else:
-        format_issues.append(f"⚠️  {img_path.name}: Channels differ (unexpected for ultrasound)")
+
+    # Preprocessed images must be 3-channel (grayscale ultrasound → RGB).
+    if img.ndim != 3 or img.shape[2] != 3:
+        format_issues.append(f"{img_path.name}: expected 3-channel, got shape {img.shape}")
+
+    # All three channels should be identical (grayscale replicated to RGB).
+    if not (
+        np.array_equal(img[:, :, 0], img[:, :, 1])
+        and np.array_equal(img[:, :, 1], img[:, :, 2])
+    ):
+        format_issues.append(
+            f"{img_path.name}: channels differ unexpectedly for grayscale ultrasound"
+        )
 
 if format_issues:
     for issue in format_issues:
         print(f"  {issue}")
 else:
-    print("✅ All sampled images are proper RGB format")
+    print("All sampled images are proper 3-channel RGB format.")
 
-# ============================================================================
-# 5. YOLO LABEL FORMAT CHECKS
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 5. YOLO label format checks
+# ---------------------------------------------------------------------------
 print("\n[5] YOLO LABEL FORMAT CHECKS")
 print("-" * 70)
 
 label_samples = random.sample(train_label_yolo, min(10, len(train_label_yolo)))
-label_issues = []
-point_counts = []
+label_issues: list[str] = []
+point_counts: list[int] = []
 
 for label_path in label_samples:
     content = label_path.read_text().strip()
-    
+
     if not content:
-        label_issues.append(f"❌ {label_path.name}: Empty label file")
+        label_issues.append(f"{label_path.name}: empty label file")
         continue
-    
+
     parts = content.split()
-    
-    # Check class ID
+
+    # Class ID must be 0 (fetal_head is the only class).
     if parts[0] != "0":
-        label_issues.append(f"❌ {label_path.name}: Wrong class '{parts[0]}' (expected '0')")
-    
-    # Check coordinate count (should be even, minimum 6 for triangle)
+        label_issues.append(
+            f"{label_path.name}: unexpected class ID '{parts[0]}' (expected '0')"
+        )
+
     coord_count = len(parts) - 1
     if coord_count < 6:
-        label_issues.append(f"❌ {label_path.name}: Only {coord_count//2} points (need ≥3)")
+        label_issues.append(
+            f"{label_path.name}: only {coord_count // 2} polygon points (≥3 required)"
+        )
     elif coord_count % 2 != 0:
-        label_issues.append(f"❌ {label_path.name}: Odd number of coordinates ({coord_count})")
+        label_issues.append(
+            f"{label_path.name}: odd coordinate count ({coord_count})"
+        )
     else:
         point_counts.append(coord_count // 2)
-    
-    # Check coordinate normalization
+
     try:
         coords = [float(x) for x in parts[1:]]
-        if min(coords) < -0.01 or max(coords) > 1.01:  # Small tolerance for float precision
+        # Allow a small tolerance (1 %) for floating-point rounding at the border.
+        if min(coords) < -0.01 or max(coords) > 1.01:
             label_issues.append(
-                f"❌ {label_path.name}: Coords not normalized! Range: {min(coords):.4f} - {max(coords):.4f}"
+                f"{label_path.name}: coordinates not normalised — "
+                f"range [{min(coords):.4f}, {max(coords):.4f}]"
             )
     except ValueError:
-        label_issues.append(f"❌ {label_path.name}: Invalid coordinate values")
+        label_issues.append(f"{label_path.name}: invalid (non-numeric) coordinate values")
 
 if label_issues:
-    print("\nLabel Issues Found:")
+    print("  Label issues found:")
     for issue in label_issues:
-        print(f"  {issue}")
+        print(f"    {issue}")
 else:
-    print("✅ All sampled YOLO labels have correct format")
+    print("All sampled YOLO labels are correctly formatted.")
 
 if point_counts:
-    print(f"\nPolygon Point Counts (n={len(point_counts)}):")
-    print(f"  Mean:   {np.mean(point_counts):.1f} points")
-    print(f"  Median: {np.median(point_counts):.0f} points")
-    print(f"  Range:  {np.min(point_counts)} - {np.max(point_counts)} points")
+    print(
+        f"\nPolygon point counts (n={len(point_counts)}):\n"
+        f"  Mean   : {np.mean(point_counts):.1f}\n"
+        f"  Median : {np.median(point_counts):.0f}\n"
+        f"  Range  : {np.min(point_counts)} – {np.max(point_counts)}"
+    )
 
-# ============================================================================
-# 6. METADATA CHECKS
-# ============================================================================
-print("\n[6] METADATA CHECKS")
+# ---------------------------------------------------------------------------
+# 6. Metadata artefact checks
+# ---------------------------------------------------------------------------
+print("\n[6] METADATA ARTEFACT CHECKS")
 print("-" * 70)
 
-# Check split.csv
+# split.csv
 split_csv_path = OUTPUT_DIR / "fastai" / "split.csv"
 if not split_csv_path.exists():
-    print("❌ split.csv not found")
+    print("  FAIL: split.csv not found")
 else:
     split_df = pd.read_csv(split_csv_path)
-    print(f"✅ split.csv loaded: {len(split_df)} records")
-    print(f"   Columns: {split_df.columns.tolist()}")
-    
-    # Check required columns
+    print(f"split.csv: {len(split_df)} records")
     required_cols = {"filename", "split", "pixel_size_mm", "hc_mm"}
-    if not required_cols.issubset(split_df.columns):
-        print(f"   ❌ Missing columns: {required_cols - set(split_df.columns)}")
+    missing_cols = required_cols - set(split_df.columns)
+    if missing_cols:
+        print(f"  FAIL: missing columns: {missing_cols}")
     else:
-        print(f"   ✅ All required columns present")
-    
-    # Check split counts
-    train_count = (split_df["split"] == "train").sum()
-    val_count = (split_df["split"] == "val").sum()
-    print(f"   Train: {train_count}, Val: {val_count} ({val_count/(train_count+val_count)*100:.1f}% val)")
+        train_count = (split_df["split"] == "train").sum()
+        val_count = (split_df["split"] == "val").sum()
+        val_pct = val_count / (train_count + val_count) * 100
+        print(f"  Columns OK. Train: {train_count}, Val: {val_count} ({val_pct:.1f}% val)")
 
-# Check pixel_metadata.json
+# pixel_metadata.json
 metadata_path = OUTPUT_DIR / "pixel_metadata.json"
 if not metadata_path.exists():
-    print("❌ pixel_metadata.json not found")
+    print("  FAIL: pixel_metadata.json not found")
 else:
     with open(metadata_path) as f:
         metadata = json.load(f)
-    print(f"✅ pixel_metadata.json loaded: {len(metadata)} records")
+    print(f"pixel_metadata.json: {len(metadata)} records")
 
-# Check data.yaml
+# data.yaml
 yaml_path = OUTPUT_DIR / "yolo" / "data.yaml"
 if not yaml_path.exists():
-    print("❌ data.yaml not found")
+    print("  FAIL: data.yaml not found")
 else:
     yaml_content = yaml_path.read_text()
-    print(f"✅ data.yaml exists")
     if "nc: 1" in yaml_content and "fetal_head" in yaml_content:
-        print("   ✅ Correct class configuration")
+        print("data.yaml: class configuration correct (nc=1, fetal_head)")
     else:
-        print("   ❌ data.yaml may have incorrect configuration")
+        print("  FAIL: data.yaml may have incorrect class configuration")
 
-# ============================================================================
-# 7. VISUAL SPOT-CHECK
-# ============================================================================
+# ---------------------------------------------------------------------------
+# 7. Visual spot-check
+# ---------------------------------------------------------------------------
 print("\n[7] VISUAL SPOT-CHECK")
 print("-" * 70)
-print("Displaying 3 random samples with mask overlays...")
-print("Press any key to cycle through, ESC to skip visualization")
+print("Displaying 3 random image-mask overlay pairs…")
+print("Press any key to advance, ESC to skip visualisation.\n")
 
 visual_samples = random.sample(train_img_fastai, min(3, len(train_img_fastai)))
 
@@ -307,43 +356,48 @@ for img_path in visual_samples:
     mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
 
     if img is None or mask is None:
-        print(f"⚠️  Skipping {img_path.name} - failed to load")
+        print(f"  Skipping {img_path.name}: failed to load image or mask")
         continue
 
-    # Create overlay
+    # Composite a 70/30 blend of the original image and a green mask overlay.
     overlay = img.copy()
-    overlay[mask > 0] = [0, 255, 0]  # green overlay
+    overlay[mask > 0] = [0, 255, 0]
     blended = cv2.addWeighted(img, 0.7, overlay, 0.3, 0)
 
-    # Add text with stats
     coverage = (mask > 0).sum() / mask.size * 100
-    status = "✅" if 15 <= coverage <= 50 else "⚠️"
+    status = "OK" if 15.0 <= coverage <= 50.0 else "OUT_OF_RANGE"
     cv2.putText(
-        blended, 
-        f"{status} Coverage: {coverage:.1f}%", 
-        (10, 30), 
-        cv2.FONT_HERSHEY_SIMPLEX, 
-        0.7, 
-        (255, 255, 255), 
-        2
+        blended,
+        f"{status}  coverage={coverage:.1f}%",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 255),
+        2,
     )
 
     cv2.imshow(f"Validation: {img_path.name}", blended)
     key = cv2.waitKey(0)
-    if key == 27:  # ESC
+    if key == 27:  # ESC — abort the visual check early.
         break
 
 cv2.destroyAllWindows()
 
-# ============================================================================
-# SUMMARY
-# ============================================================================
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
 print("\n" + "=" * 70)
 print("VALIDATION SUMMARY")
 print("=" * 70)
-total_issues = len(issues) + len(mask_issues) + len(format_issues) + len(label_issues) + len(hollow_masks)
+total_issues = (
+    len(issues)
+    + len(mask_issues)
+    + len(format_issues)
+    + len(label_issues)
+    + len(hollow_masks)
+)
 if total_issues == 0:
-    print("✅ ALL CHECKS PASSED - Preprocessing output looks great!")
+    print("All checks passed — preprocessing output looks correct.")
 else:
-    print(f"⚠️  Found {total_issues} issues that may need attention")
+    print(f"{total_issues} issue(s) found that may require attention.")
 print("=" * 70)

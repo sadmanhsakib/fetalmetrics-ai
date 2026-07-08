@@ -1,216 +1,280 @@
-"""Verification script for YOLOv8-segmentation ONNX Model with Accuracy Metrics."""
+"""
+validate_yolov8_onnx.py
+=======================
+Benchmark and accuracy evaluation for the exported YOLOv8-seg ONNX model.
+
+Evaluation protocol
+--------------------
+1. Instantiate the ``YOLOv8Segmenter`` wrapper and report the ONNX input
+   tensor specification.
+2. Measure CPU inference latency over 50 benchmark runs (10 warm-up runs
+   excluded) and flag whether the ≤200 ms budget is met.
+3. Sample up to 10 validation images, run end-to-end inference (including
+   letterboxing, NMS-free head decoding, and mask assembly), compare the
+   predicted mask against the preprocessed ground-truth mask, and report
+   per-image and aggregate metrics:
+
+   * IoU (Jaccard index)
+   * Dice coefficient (F₁ score for segmentation)
+   * Pixel accuracy
+
+The ground-truth masks are loaded from the FastAI split directory, which is
+shared between both model families and avoids duplication.
+
+Usage
+-----
+    python scripts/test/validate_yolov8_onnx.py
+"""
+
+from __future__ import annotations
+
 import os
 import random
-import time
 import sys
+import time
 
 import cv2
 import numpy as np
-
 from pyprojroot import here
 
 sys.path.insert(0, str(here("src")))
 from config import MODELS
 from inference.yolov8_onnx import YOLOv8Segmenter
 
-# ============================================================================
-# Metric Calculation Functions
-# ============================================================================
-
-def calculate_iou(pred_mask, gt_mask):
-    """Calculate Intersection over Union (IoU) / Jaccard Index.
-
-    Args:
-        pred_mask: Binary prediction mask (0 or 1)
-        gt_mask: Binary ground truth mask (0 or 1)
-
-    Returns:
-        IoU score (float between 0 and 1)
-    """
-    intersection = np.logical_and(pred_mask, gt_mask).sum()
-    union = np.logical_or(pred_mask, gt_mask).sum()
-
-    if union == 0:
-        return 1.0 if intersection == 0 else 0.0
-
-    return intersection / union
-
-
-def calculate_dice(pred_mask, gt_mask):
-    """Calculate Dice Coefficient (F1-score for segmentation).
-
-    Args:
-        pred_mask: Binary prediction mask (0 or 1)
-        gt_mask: Binary ground truth mask (0 or 1)
-
-    Returns:
-        Dice score (float between 0 and 1)
-    """
-    intersection = np.logical_and(pred_mask, gt_mask).sum()
-    total_pixels = pred_mask.sum() + gt_mask.sum()
-
-    if total_pixels == 0:
-        return 1.0 if intersection == 0 else 0.0
-
-    return (2.0 * intersection) / total_pixels
-
-def calculate_pixel_accuracy(pred_mask, gt_mask):
-    """Calculate pixel-level accuracy.
-
-    Args:
-        pred_mask: Binary prediction mask (0 or 1)
-        gt_mask: Binary ground truth mask (0 or 1)
-
-    Returns:
-        Pixel accuracy (float between 0 and 1)
-    """
-    correct = (pred_mask == gt_mask).sum()
-    total = pred_mask.size
-    return correct / total
-
-
-def preprocess_image(img_path):
-    """Load an image in RGB format.
-
-    Args:
-        img_path: Path to image file
-
-    Returns:
-        RGB image array (H, W, 3)
-    """
-    img = cv2.imread(str(img_path))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img
-
-
-def load_ground_truth_mask(mask_path, target_shape):
-    """Load and binarize a ground truth mask.
-
-    Args:
-        mask_path: Path to mask file
-        target_shape: Target (height, width) for resizing
-
-    Returns:
-        Binary mask (H, W) with values 0 or 1
-    """
-    mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-    mask = cv2.resize(mask, (target_shape[1], target_shape[0]), interpolation=cv2.INTER_NEAREST)
-
-    # Binarize: threshold at mid-value (128)
-    mask = (mask > 128).astype(np.uint8)
-
-    return mask
-
-# ============================================================================
-# Main Validation Script
-# ============================================================================
-
-# 1. Setup paths
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 IMG_PATH = here("data/preprocessed/yolo/images/val/")
+# Ground-truth masks are produced by preprocess.py under the FastAI tree;
+# they are identical for both model formats.
 MASK_PATH = here("data/preprocessed/fastai/masks/val/")
 MODEL_PATH = here("models/yolov8_hc.onnx")
 
-if not IMG_PATH.exists():
-    raise FileNotFoundError(
-        f"Image directory not found at {IMG_PATH}. "
-        "Make sure it is downloaded and placed in the right directory."
-    )
-if not MASK_PATH.exists():
-    raise FileNotFoundError(
-        f"Mask directory not found at {MASK_PATH}. "
-        "Make sure ground truth masks are available."
-    )
-if not MODEL_PATH.exists():
-    raise FileNotFoundError(
-        f"Model file not found at {MODEL_PATH}. "
-        "Make sure it is downloaded and placed in the right directory."
-    )
+# Benchmark parameters
+_WARMUP_RUNS = 10
+_BENCHMARK_RUNS = 50
+_LATENCY_BUDGET_MS = 200.0
 
-# 2. Load model
-print(f"Loading YOLOv8 ONNX model from: {MODEL_PATH}...")
-start_time = time.time()
+
+# ---------------------------------------------------------------------------
+# Metric functions
+# ---------------------------------------------------------------------------
+
+def calculate_iou(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
+    """Compute Intersection over Union (Jaccard index) for two binary masks.
+
+    Parameters
+    ----------
+    pred_mask:
+        Binary prediction mask with values 0 or 1, shape (H, W).
+    gt_mask:
+        Binary ground-truth mask with values 0 or 1, shape (H, W).
+
+    Returns
+    -------
+    float
+        IoU score in [0, 1].  Returns 1.0 when both masks are empty.
+    """
+    intersection = np.logical_and(pred_mask, gt_mask).sum()
+    union = np.logical_or(pred_mask, gt_mask).sum()
+    if union == 0:
+        return 1.0 if intersection == 0 else 0.0
+    return float(intersection / union)
+
+
+def calculate_dice(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
+    """Compute the Dice coefficient (F₁ score) for two binary masks.
+
+    Parameters
+    ----------
+    pred_mask:
+        Binary prediction mask with values 0 or 1, shape (H, W).
+    gt_mask:
+        Binary ground-truth mask with values 0 or 1, shape (H, W).
+
+    Returns
+    -------
+    float
+        Dice score in [0, 1].  Returns 1.0 when both masks are empty.
+    """
+    intersection = np.logical_and(pred_mask, gt_mask).sum()
+    total_pixels = pred_mask.sum() + gt_mask.sum()
+    if total_pixels == 0:
+        return 1.0 if intersection == 0 else 0.0
+    return float((2.0 * intersection) / total_pixels)
+
+
+def calculate_pixel_accuracy(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
+    """Compute the fraction of correctly classified pixels.
+
+    Parameters
+    ----------
+    pred_mask:
+        Binary prediction mask with values 0 or 1, shape (H, W).
+    gt_mask:
+        Binary ground-truth mask with values 0 or 1, shape (H, W).
+
+    Returns
+    -------
+    float
+        Pixel accuracy in [0, 1].
+    """
+    return float((pred_mask == gt_mask).sum() / pred_mask.size)
+
+
+# ---------------------------------------------------------------------------
+# Preprocessing helpers
+# ---------------------------------------------------------------------------
+
+def load_image_rgb(img_path: os.PathLike) -> np.ndarray:
+    """Load an image from disk as an RGB uint8 array.
+
+    The YOLOv8Segmenter wrapper accepts raw RGB images and handles all
+    model-specific preprocessing (letterboxing, normalization, tensor packing)
+    internally inside ``predict``.
+
+    Parameters
+    ----------
+    img_path:
+        Path to the input image file.
+
+    Returns
+    -------
+    numpy.ndarray
+        RGB uint8 array of shape (H, W, 3).
+    """
+    img = cv2.imread(str(img_path))
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def load_ground_truth_mask(
+    mask_path: os.PathLike,
+    target_shape: tuple[int, int],
+) -> np.ndarray:
+    """Load and binarize a ground-truth segmentation mask.
+
+    Resizes the mask to ``target_shape`` using nearest-neighbour interpolation
+    to preserve binary values without introducing interpolation artefacts.
+
+    Parameters
+    ----------
+    mask_path:
+        Path to the grayscale PNG mask file (values 0 or 255).
+    target_shape:
+        Target spatial dimensions as (height, width).  Note: OpenCV uses
+        (width, height) ordering for ``resize``; this function handles the
+        conversion internally.
+
+    Returns
+    -------
+    numpy.ndarray
+        Binary uint8 mask of shape ``target_shape`` with values 0 or 1.
+    """
+    mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+    mask = cv2.resize(
+        mask,
+        (target_shape[1], target_shape[0]),  # cv2.resize takes (w, h)
+        interpolation=cv2.INTER_NEAREST,
+    )
+    return (mask > 128).astype(np.uint8)
+
+
+# ---------------------------------------------------------------------------
+# Main validation routine
+# ---------------------------------------------------------------------------
+
+# Guard: verify all required artefacts are present before loading the model.
+for _path, _desc in [
+    (IMG_PATH, "validation image directory"),
+    (MASK_PATH, "ground-truth mask directory"),
+    (MODEL_PATH, "YOLOv8 ONNX model file"),
+]:
+    if not _path.exists():
+        raise FileNotFoundError(
+            f"{_desc.capitalize()} not found at {_path}. "
+            "Ensure preprocessing has completed and model weights are in place."
+        )
+
+# Load the model through the shared segmenter wrapper so that the same
+# preprocessing and decoding path used in production is exercised here.
+print(f"Loading YOLOv8 ONNX model from: {MODEL_PATH}…")
+_t_load = time.time()
 segmenter = YOLOv8Segmenter(MODELS["yolov8"])
 segmenter._ensure_session()
 session = segmenter._session
-print(f"Model loaded in {time.time() - start_time:.3f}s\n")
+print(f"Model loaded in {time.time() - _t_load:.3f} s\n")
 
-# 3. Retrieve input details
 input_name = session.get_inputs()[0].name
 input_shape = session.get_inputs()[0].shape
-print(f"Input Name:  {input_name}")
-print(f"Input Shape: {input_shape}\n")
+print(f"Input name  : {input_name}")
+print(f"Input shape : {input_shape}\n")
 
-# 4. Select random images for accuracy evaluation
-all_images = sorted([f for f in os.listdir(IMG_PATH) if f.endswith('.png')])
+# Select a random subset of validation images.
+all_images = sorted([f for f in os.listdir(IMG_PATH) if f.endswith(".png")])
 num_test_images = min(10, len(all_images))
-
 if num_test_images < 10:
-    print(f"⚠️  Warning: Only {num_test_images} images available (requested 10)\n")
-
+    print(f"Warning: only {num_test_images} images available (requested 10)\n")
 test_images = random.sample(all_images, num_test_images)
 
-# 5. Benchmark speed on first image
+# ---------------------------------------------------------------------------
+# Latency benchmark
+# ---------------------------------------------------------------------------
 print("=" * 70)
 print("LATENCY BENCHMARK")
 print("=" * 70)
 
-first_img_path = IMG_PATH / test_images[0]
-first_img = preprocess_image(first_img_path)
+first_img = load_image_rgb(IMG_PATH / test_images[0])
 
-# Warm-up pass
+# Warm-up pass to prime ONNX Runtime graph optimizations and OS I/O caches.
 result = segmenter.predict(first_img)
 print(f"Prediction mask shape: {result.mask.shape}\n")
 
-# Benchmark
-WARMUP_RUNS = 10
-BENCHMARK_RUNS = 50
-
-for _ in range(WARMUP_RUNS):
+for _ in range(_WARMUP_RUNS):
     segmenter.predict(first_img)
 
-latencies = []
-for _ in range(BENCHMARK_RUNS):
+latencies: list[float] = []
+for _ in range(_BENCHMARK_RUNS):
     t0 = time.perf_counter()
     segmenter.predict(first_img)
     latencies.append(time.perf_counter() - t0)
 
-mean_latency_ms = np.mean(latencies) * 1000
-p95_latency_ms = np.percentile(latencies, 95) * 1000
-print(f"Mean CPU Latency: {mean_latency_ms:.1f}ms  |  P95: {p95_latency_ms:.1f}ms")
+mean_ms = np.mean(latencies) * 1000
+p95_ms = np.percentile(latencies, 95) * 1000
+print(f"Mean CPU latency : {mean_ms:.1f} ms  |  P95 : {p95_ms:.1f} ms")
 
-if mean_latency_ms < 200:
-    print("✅ Target constraint met: CPU latency is under 200ms.\n")
+if mean_ms < _LATENCY_BUDGET_MS:
+    print(f"Latency budget met: mean < {_LATENCY_BUDGET_MS:.0f} ms\n")
 else:
-    print("⚠️  Target constraint missed: CPU latency is above 200ms.\n")
+    print(f"Latency budget missed: mean exceeds {_LATENCY_BUDGET_MS:.0f} ms\n")
 
-# 6. Calculate accuracy metrics
+# ---------------------------------------------------------------------------
+# Accuracy metrics
+# ---------------------------------------------------------------------------
 print("=" * 70)
-print(f"ACCURACY METRICS (n={num_test_images} images)")
+print(f"ACCURACY METRICS  (n={num_test_images} images)")
 print("=" * 70)
 
-iou_scores = []
-dice_scores = []
-pixel_acc_scores = []
-results = []
+iou_scores: list[float] = []
+dice_scores: list[float] = []
+pixel_acc_scores: list[float] = []
+results: list[dict] = []
 
 for img_name in test_images:
     img_path = IMG_PATH / img_name
     mask_path = MASK_PATH / img_name
 
-    # Check if ground truth exists
     if not mask_path.exists():
-        print(f"⚠️  Skipping {img_name}: ground truth mask not found")
+        print(f"  Skipping {img_name}: ground-truth mask not found")
         continue
 
-    # Load and preprocess
-    img = preprocess_image(img_path)
+    img = load_image_rgb(img_path)
     gt_mask = load_ground_truth_mask(mask_path, img.shape[:2])
 
-    # Run inference
+    # ``predict`` runs the full inference-to-mask pipeline, returning a
+    # binary mask at the original image resolution.
     result = segmenter.predict(img)
     pred_mask = result.mask
 
-    # Calculate metrics
     iou = calculate_iou(pred_mask, gt_mask)
     dice = calculate_dice(pred_mask, gt_mask)
     pixel_acc = calculate_pixel_accuracy(pred_mask, gt_mask)
@@ -218,49 +282,40 @@ for img_name in test_images:
     iou_scores.append(iou)
     dice_scores.append(dice)
     pixel_acc_scores.append(pixel_acc)
+    results.append({"image": img_name, "iou": iou, "dice": dice, "pixel_acc": pixel_acc})
 
-    results.append({
-        'image': img_name,
-        'iou': iou,
-        'dice': dice,
-        'pixel_acc': pixel_acc
-    })
-
-# 7. Display results
+# Per-image table
 if not results:
-    print("❌ No valid image-mask pairs found for evaluation")
+    print("No valid image-mask pairs found for evaluation.")
 else:
     print("\nPer-Image Results:")
     print("-" * 70)
     print(f"{'Image':<20} {'IoU':>10} {'Dice':>10} {'Pixel Acc':>12}")
     print("-" * 70)
-
     for r in results:
-        print(f"{r['image']:<20} {r['iou']:>10.3f} {r['dice']:>10.3f} {r['pixel_acc']:>12.3f}")
-
+        print(
+            f"{r['image']:<20} {r['iou']:>10.3f} {r['dice']:>10.3f}"
+            f" {r['pixel_acc']:>12.3f}"
+        )
     print("-" * 70)
 
-    # Summary statistics
+    # Aggregate statistics
     mean_iou = np.mean(iou_scores)
-    std_iou = np.std(iou_scores)
     mean_dice = np.mean(dice_scores)
-    std_dice = np.std(dice_scores)
     mean_pixel_acc = np.mean(pixel_acc_scores)
-    std_pixel_acc = np.std(pixel_acc_scores)
 
     print("\nSummary Statistics:")
     print("-" * 70)
     print(f"{'Metric':<20} {'Mean':>10} {'Std Dev':>12}")
     print("-" * 70)
-    print(f"{'IoU (Jaccard)':<20} {mean_iou:>10.3f} {std_iou:>12.3f}")
-    print(f"{'Dice Coefficient':<20} {mean_dice:>10.3f} {std_dice:>12.3f}")
-    print(f"{'Pixel Accuracy':<20} {mean_pixel_acc:>10.3f} {std_pixel_acc:>12.3f}")
+    print(f"{'IoU (Jaccard)':<20} {mean_iou:>10.3f} {np.std(iou_scores):>12.3f}")
+    print(f"{'Dice Coefficient':<20} {mean_dice:>10.3f} {np.std(dice_scores):>12.3f}")
+    print(f"{'Pixel Accuracy':<20} {mean_pixel_acc:>10.3f} {np.std(pixel_acc_scores):>12.3f}")
     print("=" * 70)
 
-    # Final assessment
     if mean_iou > 0.7 and mean_dice > 0.8:
-        print("\n✅ Model accuracy is GOOD (IoU > 0.7, Dice > 0.8)")
+        print("\nModel accuracy: GOOD  (IoU > 0.7, Dice > 0.8)")
     elif mean_iou > 0.5 and mean_dice > 0.6:
-        print("\n⚠️  Model accuracy is ACCEPTABLE (IoU > 0.5, Dice > 0.6)")
+        print("\nModel accuracy: ACCEPTABLE  (IoU > 0.5, Dice > 0.6)")
     else:
-        print("\n❌ Model accuracy is LOW (IoU < 0.5 or Dice < 0.6)")
+        print("\nModel accuracy: LOW  (IoU < 0.5 or Dice < 0.6)")
