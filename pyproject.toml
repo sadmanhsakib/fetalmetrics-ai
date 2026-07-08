@@ -1,7 +1,7 @@
 [project]
 name = "fetalmetrics-ai"
 version = "0.1.0"
-description = "Automated fetal head circumference measurement from 2D ultrasound"
+description = "Automated fetal head circumference measurement from 2D ultrasound images."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

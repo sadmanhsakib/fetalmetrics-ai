@@ -88,7 +88,6 @@ DOC = f"""
     exact formulae, the reference distribution, the screening logic, and the assumptions and
     limitations that bound how the output may be read.</p>
     <div class="doc-meta">
-      <span><b>Version</b> {config.APP_VERSION}</span>
       <span><b>Reference</b> Hadlock HC-for-GA</span>
       <span><b>Supported GA</b> {ga_lo}–{ga_hi} weeks</span>
       <span><b>Status</b> Research prototype</span>
@@ -331,7 +330,7 @@ DOC = f"""
     </section>
 
     <div class="doc-footer">
-      {config.APP_NAME} · v{config.APP_VERSION} — {config.APP_TAGLINE}<br>
+      {config.APP_NAME} — {config.APP_TAGLINE}<br>
       This methodology is generated from the running clinical modules; displayed coefficients and
       thresholds reflect the code in this build.
     </div>

@@ -79,7 +79,7 @@ def header_html() -> str:
       <div class="fm-logo">{ICONS['caliper']}</div>
       <div class="fm-title-wrap">
         <h1>{name_main}<span class="accent">-AI</span></h1>
-        <div class="sub">{config.APP_TAGLINE} · automated fetal head-circumference biometry</div>
+        <div class="sub">{config.APP_TAGLINE} for measuring fetal head circumference.</div>
       </div>
       <div class="spacer"></div>
       <a class="fm-navlink" href="/Methodology" target="_self"
@@ -87,7 +87,6 @@ def header_html() -> str:
         {ICONS['book']}<span>Methodology</span>
         <span class="arw">{ICONS['arrow_right']}</span>
       </a>
-      <span class="fm-pill">Research build · v{config.APP_VERSION}</span>
     </div>
     """
 
@@ -96,7 +95,7 @@ def safety_banner_html() -> str:
     return f"""
     <div class="fm-safety">
       <div class="ico">{ICONS['warning']}</div>
-      <div class="txt"><b>Research prototype — not for clinical diagnosis.</b><br>
+      <div class="txt"><b>For Research — not for clinical diagnosis.</b><br>
         {config.SAFETY_NOTICE}</div>
     </div>
     """

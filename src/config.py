@@ -34,14 +34,9 @@ HC18_PIXEL_SIZE_CSVS: tuple[Path, ...] = (
 # --------------------------------------------------------------------------- #
 # Application metadata
 # --------------------------------------------------------------------------- #
-APP_NAME: str = "Fetal Metrics-ai"
+APP_NAME: str = "FetalMetrics-AI"
 APP_TAGLINE: str = "Automated Fetal Biometry Assistant"
-APP_VERSION: str = "1.0.0"
-SAFETY_NOTICE: str = (
-    "This is a research prototype and is not a certified diagnostic device. "
-    "Outputs are for engineering demonstration and research only and must not "
-    "be used for clinical decision-making."
-)
+SAFETY_NOTICE: str = "This tool is intended for research and educational purposes only. It is NOT a diagnostic medical device and should NOT be used as the sole basis for clinical decisions. All measurements must be verified by qualified healthcare professionals."
 
 # --------------------------------------------------------------------------- #
 # Gestational age input constraints (drives the slider + reference lookups)
