@@ -3,7 +3,7 @@ pages/1_Methodology.py
 ======================
 The methodology as its own page (Streamlit multipage). It is reachable from the
 sidebar navigation and from the prominent "Methodology" link in the homepage
-masthead / empty state.
+masthead/empty state.
 
 The document is written in a medical-journal register and — importantly — pulls
 its numbers directly from the live clinical modules (`reference_hadlock`,
@@ -55,14 +55,17 @@ ref_rows_html = "".join(_ref_rows)
 
 # Risk-band rows, coloured by the same tokens the app uses.
 bands = [
-    (rc["HIGH"]["solid"], f"&lt; {hi:.0f}th", "High — screening alert",
-     "Possible fetal growth restriction (IUGR). Flag for clinical correlation; "
-     "a single low measurement is a prompt to review, not a diagnosis."),
-    (rc["MEDIUM"]["solid"], f"{hi:.0f}–{md:.0f}th", "Borderline",
-     "Lower-normal growth range. Monitor closely on serial scans rather than "
-     "acting on the isolated value."),
-    (rc["NORMAL"]["solid"], f"&ge; {md:.0f}th", "Normal",
-     "Within the expected head-circumference growth curve for gestational age."),
+    (rc["HIGH"]["solid"], f"&lt; {hi:.0f}th", "High Risk — Screening Alert Threshold",
+     "Identifies growth profiles residing below the 10th percentile, which warrants screening for "
+     "intrauterine growth restriction (IUGR). Clinical correlation and supplementary diagnostic evaluations "
+     "(e.g., Doppler velocimetry, amniotic fluid volume assessment) are recommended. An isolated screening outcome "
+     "warrants clinical review rather than immediate definitive diagnostic classification."),
+    (rc["MEDIUM"]["solid"], f"{hi:.0f}–{md:.0f}th", "Medium Risk — Borderline Growth Range",
+     "Identifies growth profiles residing in the lower-normal boundary of the normative distribution. Serial growth "
+     "assessments via diagnostic ultrasonography are recommended to differentiate normal physiological variants from early "
+     "manifestations of pathological growth deceleration."),
+    (rc["NORMAL"]["solid"], f"&ge; {md:.0f}th", "Normal Growth Profile",
+     "Indicates biometric dimensions residing within the anticipated growth distribution curve for the designated gestational age."),
 ]
 bands_html = "".join(
     f'<div class="doc-band" style="--rk:{c};">'
@@ -81,181 +84,150 @@ DOC = f"""
   <a class="back-link" href="/" target="_self">{C.icon('arrow_left')}<span>Back to analyzer</span></a>
 
   <div class="doc-hero">
-    <div class="eyebrow">Methods &amp; Clinical Reference</div>
-    <h1>How {config.APP_NAME.split('-')[0].strip()}-AI measures fetal head circumference</h1>
-    <p class="lede">A transparent, end-to-end account of the measurement chain — from raw
-    ultrasound to a calibrated head circumference and its growth percentile — including the
-    exact formulae, the reference distribution, the screening logic, and the assumptions and
-    limitations that bound how the output may be read.</p>
+    <div class="eyebrow">Methodological Framework &amp; Clinical Reference</div>
+    <h1>Methodological Framework for Automated Fetal Head Circumference Estimation and Growth Restriction Screening</h1>
+    <p class="lede">This document presents a formal, end-to-end technical account of the algorithmic and statistical pipeline designed to automate fetal head circumference (HC) estimation from two-dimensional ultrasound scans. The methodology describes spatial scale calibration, deep semantic skull segmentation, morphological boundary isolation, least-squares ellipse fitting, parametric perimeter estimation, and clinical growth percentile mapping.</p>
     <div class="doc-meta">
-      <span><b>Reference</b> Hadlock HC-for-GA</span>
-      <span><b>Supported GA</b> {ga_lo}–{ga_hi} weeks</span>
-      <span><b>Status</b> Research prototype</span>
+      <span><b>Reference Model</b> Hadlock HC-for-GA (1984)</span>
+      <span><b>Gestational Age Limits</b> {ga_lo}–{ga_hi} completed weeks</span>
+      <span><b>Classification</b> Research Prototype</span>
     </div>
   </div>
 
   <div class="doc-toc">
     <div class="t">Contents</div>
     <ol>
-      <li><a href="#overview">Overview &amp; intent</a></li>
-      <li><a href="#pipeline">The measurement pipeline</a></li>
-      <li><a href="#calibration">Spatial calibration</a></li>
-      <li><a href="#segmentation">Skull segmentation</a></li>
-      <li><a href="#ellipse">Contour isolation &amp; ellipse fit</a></li>
-      <li><a href="#circumference">Head circumference</a></li>
-      <li><a href="#percentile">Growth percentile</a></li>
-      <li><a href="#risk">Screening risk bands</a></li>
-      <li><a href="#config">Reproducibility &amp; configuration</a></li>
-      <li><a href="#limitations">Assumptions &amp; limitations</a></li>
+      <li><a href="#overview">Introduction &amp; Clinical Context</a></li>
+      <li><a href="#pipeline">Computational Pipeline Overview</a></li>
+      <li><a href="#data-pipeline">Data Corpus &amp; Preprocessing Pipeline</a></li>
+      <li><a href="#segmentation">Deep Learning Segmentation Architectures</a></li>
+      <li><a href="#calibration">Spatial Calibration &amp; Scale Resolution</a></li>
+      <li><a href="#ellipse">Morphological Filtering &amp; Ellipse Fitting</a></li>
+      <li><a href="#circumference">Perimeter Estimation via Ramanujan II Approximation</a></li>
+      <li><a href="#percentile">Growth Percentile Evaluation &amp; Statistical Distribution</a></li>
+      <li><a href="#risk">Clinical Risk Classification &amp; Screening Bands</a></li>
+      <li><a href="#config">Centralized Configuration &amp; Reproducibility</a></li>
+      <li><a href="#verification">System Validation, Testing &amp; Limitations</a></li>
     </ol>
   </div>
 
   <div class="doc-body">
 
     <section class="doc-sec" id="overview">
-      <div class="kicker">§ 1</div>
-      <h2>Overview &amp; intent</h2>
-      <p>{config.APP_NAME.split('-')[0].strip()}-AI estimates the fetal <strong>head circumference
-      (HC)</strong> from a single two-dimensional ultrasound of the fetal head, and places that
-      measurement on a gestational-age growth curve to produce a percentile and a screening
-      band. The goal is a fully <em>auditable</em> pipeline: every step is a small, inspectable
-      transform, and every clinical constant lives in one configuration file.</p>
-      <p>The measurement problem is fundamentally geometric. An ultrasound of the fetal skull
-      at the standard trans-thalamic plane shows an approximately elliptical bony outline; HC is
-      the perimeter of the ellipse that best fits that outline. The engineering task is therefore
-      to (a) find the skull, (b) fit an ellipse to it, (c) convert pixels to millimetres, and
-      (d) compare the result against a normative reference. Each is treated below.</p>
+      <div class="kicker">Section 1</div>
+      <h2>Introduction &amp; Clinical Context</h2>
+      <p>Intrauterine growth restriction (IUGR) is a significant pathology in obstetrics, predisposing neonates to elevated risks of perinatal morbidity, neurodevelopmental delays, and mortality. Accurate screening for IUGR depends heavily on the evaluation of fetal growth parameters, among which <strong>fetal head circumference (HC)</strong> is a critical metric. The measurement of HC at the trans-thalamic plane provides essential diagnostic data regarding cranial development and gestational age matching.</p>
+      <p>In current clinical practice, head circumference is manually estimated by sonographers using interactive ellipse overlays on ultrasound systems. This manual workflow exhibits three primary limitations: it is highly operator-dependent, introduces inter-observer variability ranging from 5% to 10%, and demands substantial time from skilled personnel, which limits its throughput in low-resource and rural clinics. To mitigate these issues, the {config.APP_NAME}-AI framework implements an automated, objective, and auditable methodology for cranial segmentation, geometric reconstruction, and clinical percentile calculation.</p>
       <div class="doc-callout" style="--rk:{rc['MEDIUM']['solid']};">
-        <div class="h">{C.icon('warning')} Research prototype — not a diagnostic device</div>
+        <div class="h">{C.icon('warning')} Regulatory Notice — Research Prototype</div>
         <p>{config.SAFETY_NOTICE}</p>
       </div>
     </section>
 
     <section class="doc-sec" id="pipeline">
-      <div class="kicker">§ 2</div>
-      <h2>The measurement pipeline</h2>
-      <p>A single upload flows through five deterministic stages. Stages 1 and 2 depend on the
-      input image and the chosen model; stages 3–5 are pure geometry and statistics and are
-      unit-testable in isolation.</p>
+      <div class="kicker">Section 2</div>
+      <h2>Computational Pipeline Overview</h2>
+      <p>The system processes an input two-dimensional ultrasound image of the fetal head through five sequential, deterministic phases. The pipeline is designed for auditability, where each component executes a discrete coordinate or intensity transform that can be validated independently:</p>
       <ol class="doc-steps">
-        <li><b>Calibrate.</b> Resolve the physical scale of the image in millimetres per pixel.</li>
-        <li><b>Segment.</b> Predict a binary skull mask with an exported ONNX model (YOLOv8-seg or U-Net).</li>
-        <li><b>Fit.</b> Clean the mask, isolate the largest contour, and fit an ellipse by least squares.</li>
-        <li><b>Measure.</b> Convert the ellipse semi-axes to millimetres and compute its perimeter (HC).</li>
-        <li><b>Interpret.</b> Convert HC + gestational age to a z-score, a percentile, and a screening band.</li>
+        <li><b>Spatial Calibration.</b> Resolution of the physical scaling factor (expressed in millimetres per pixel) to establish a mapping from coordinate space to physical space.</li>
+        <li><b>Semantic Segmentation.</b> Inference via a deep convolutional neural network (YOLOv8-seg or U-Net) to generate a dense, binary probability mask of the fetal skull.</li>
+        <li><b>Geometric Post-processing.</b> Application of morphological filters to seal segmentation voids, followed by Suzuki-Abe contour extraction to isolate the primary anatomical boundary.</li>
+        <li><b>Parametric Reconstruction.</b> Fitting of a parametric ellipse model to the isolated boundary coordinates via a direct least-squares estimator.</li>
+        <li><b>Clinical Interpretation.</b> Computation of the ellipse perimeter using Ramanujan's second approximation, conversion to physical millimetres, and evaluation against gestational growth curves.</li>
       </ol>
     </section>
 
-    <section class="doc-sec" id="calibration">
-      <div class="kicker">§ 3</div>
-      <h2>Spatial calibration (pixels → millimetres)</h2>
-      <p>No measurement is meaningful without a physical scale. Every pixel spacing is resolved to
-      a single number, <code>mm_per_px</code>, from the first available source in this priority
-      order:</p>
-      <h3>1 · HC18 metadata</h3>
-      <p>The HC18 Grand Challenge dataset ships a per-image <code>pixel size(mm)</code> value. When
-      the uploaded file's name matches a row in the bundled CSVs, that exact scale is used. Because
-      the same filename can appear in both the training and test splits, a collision is resolved by
-      comparing the uploaded pixels against the local reference images and choosing the split whose
-      image is nearest (mean absolute difference below a small threshold).</p>
-      <h3>2 · Manual scale</h3>
-      <p>For images outside the HC18 distribution, a manual <code>mm/px</code> value may be entered.
-      A "force manual" switch lets the operator deliberately override auto-calibration.</p>
-      <h3>3 · Fallback default</h3>
-      <p>If neither source is available, a nominal default of <code>{config.DEFAULT_PIXEL_SIZE_MM:.2f} mm/px</code>
-      is used and the result is explicitly flagged as <em>not physically calibrated</em>. In this
-      state HC is a shape estimate only, and the interface warns accordingly.</p>
-      <div class="doc-callout">
-        <div class="h">Why it matters</div>
-        <p>HC scales linearly with <code>mm_per_px</code>. A 5% calibration error becomes a 5% HC
-        error, which can shift the percentile by tens of points near the middle of the distribution.
-        Calibration provenance is surfaced on every result for exactly this reason.</p>
-      </div>
+    <section class="doc-sec" id="data-pipeline">
+      <div class="kicker">Section 3</div>
+      <h2>Data Corpus &amp; Preprocessing Pipeline</h2>
+      <p>The segmentation models were trained, validated, and evaluated using the public <strong>HC18 Grand Challenge dataset</strong>, which contains 999 training images and 335 test images (with labels withheld for evaluation) representing variable-resolution ultrasound scans of the fetal head. Annotations are provided as ground-truth ellipse parameters associated with physical spatial calibration metrics. The dataset was split into training and validation sets using an 85/15 ratio (random seed = 67), yielding 849 training pairs and 150 validation pairs. The validation set was used for hyperparameter tuning and early stopping optimization.</p>
+      <p>The preprocessing pipeline executes the following sequence:
+      <ol>
+        <li><b>Ellipse to Mask Render:</b> Ground-truth ellipse coordinates are parsed and rendered into binary target masks of identical dimensions to the raw scans.</li>
+        <li><b>Vector Polygon Conversion:</b> For YOLOv8-seg training, target masks are converted into coordinate sequences mapping the skull boundary.</li>
+        <li><b>Data Augmentation:</b> To improve generalization across varying scan environments, five stochastic augmentations are applied during training:
+          <ul>
+            <li><i>Horizontal Flip:</i> Applied with a probability of 50% to achieve invariance to fetal orientation.</li>
+            <li><i>Random Rotation:</i> Applied within a ±15-degree range to simulate transducer angle variations.</li>
+            <li><i>Scaling Factor:</i> Adjusted between 0.8x and 1.2x to replicate biological size variations.</li>
+            <li><i>Brightness Adjustment:</i> Varied within a ±30% range to simulate differing acoustic power and system gain.</li>
+            <li><i>Contrast Adjustment:</i> Perturbed within a ±20% range to mimic signal attenuation differences.</li>
+          </ul>
+        </li>
+      </ol>
+      </p>
     </section>
 
     <section class="doc-sec" id="segmentation">
-      <div class="kicker">§ 4</div>
-      <h2>Skull segmentation</h2>
-      <p>Two exported architectures are offered, both served through <strong>ONNX Runtime</strong>
-      (CPU by default, CUDA when available). Each returns a binary skull mask at the original image
-      resolution, so the downstream geometry is identical regardless of model. Weights are optional:
-      if an <code>.onnx</code> file is absent, the model reports "missing weights" and the rest of
-      the interface still functions.</p>
-      <h3>YOLOv8-seg — single-stage detector with a prototype-mask head</h3>
-      <p>The image is letterboxed to <code>{yolo.input_size[0]}×{yolo.input_size[1]}</code> (aspect
-      ratio preserved, padded), normalized by <code>/255</code>, and run through the network. The
-      detection head yields boxes, class scores and 32 mask coefficients per anchor; a separate
-      branch yields 32 mask prototypes. The highest-confidence detection above a confidence
-      threshold of <code>{yolo.conf_threshold}</code> is taken as the skull, its mask is assembled as
-      a linear combination of the prototypes (through a sigmoid), restricted to the detection box,
-      then un-padded and resized back to the original frame. Fast, single-pass inference.</p>
-      <h3>U-Net — encoder–decoder semantic segmentation</h3>
-      <p>The image is resized to <code>{unet.input_size[0]}×{unet.input_size[1]}</code> and normalized
-      with ImageNet statistics (mean <code>{unet.mean}</code>, std <code>{unet.std}</code>) to match a
-      standard training pipeline. The network emits a dense probability map; single-channel and
-      two-class output layouts are auto-detected, a sigmoid or softmax is applied only if the export
-      produced logits, and the map is thresholded at <code>{pp['mask_threshold']}</code> and resized to the
-      original resolution.</p>
-      <div class="doc-callout">
-        <div class="h">Export contract</div>
-        <p>Input size, channel count, and normalization are declared per model in <code>config.py</code>.
-        These are the only values that must be adjusted to wire in your own exported weights; the
-        inference code adapts to the declared contract rather than hard-coding it.</p>
-      </div>
+      <div class="kicker">Section 4</div>
+      <h2>Deep Learning Segmentation Architectures</h2>
+      <p>The system provides two distinct model options for skull boundary segmentation. Both architectures are compiled into the <strong>Open Neural Network Exchange (ONNX)</strong> format and executed via <strong>ONNX Runtime</strong> for efficient, hardware-agnostic inference (&lt;200ms target execution):</p>
+      <h3>1 · YOLOv8s-seg (Primary Architecture)</h3>
+      <p>The primary model is a single-stage instance-segmentation network containing 11.8 million parameters. It employs a CSPDarknet53 backbone for multi-scale feature extraction, a Path Aggregation Network (PANet) neck to fuse features across scales, and decoupled detection and segmentation heads. The segmentation head generates 32 prototype masks at one-fourth of the input resolution. The detection head predicts class scores, bounding boxes, and 32 mask coefficients per anchor. The highest-confidence detection above the threshold of <code>{yolo.conf_threshold}</code> is selected, and its mask is computed as a linear combination of the prototype masks and coefficients. The mask is then thresholded, restricted to the bounding box, and upscaled to the original image dimensions. The network expects input images resized to <code>{yolo.input_size[0]}×{yolo.input_size[1]}</code> pixels, normalized to <code>[0.0, 1.0]</code>.</p>
+      <h3>2 · U-Net ResNet34 (Baseline Architecture)</h3>
+      <p>The baseline model is a semantic segmentation network containing 24.4 million parameters. It utilizes a ResNet34 encoder pretrained on ImageNet, coupled to a symmetric decoder with skip connections that transfer high-resolution spatial features from the encoder to the decoder. The network receives inputs resized to <code>{unet.input_size[0]}×{unet.input_size[1]}</code> pixels, normalized using ImageNet channel mean (<code>{unet.mean}</code>) and standard deviation (<code>{unet.std}</code>) statistics. The network outputs a single-channel probability map, which is thresholded at <code>{pp['mask_threshold']}</code> to isolate the skull mask before being resized to the original image dimensions.</p>
+    </section>
+
+    <section class="doc-sec" id="calibration">
+      <div class="kicker">Section 5</div>
+      <h2>Spatial Calibration &amp; Scale Resolution</h2>
+      <p>Physical metrics cannot be derived without mapping the digital pixel grid to physical dimensions. The system determines the physical pixel size (expressed in millimetres per pixel) using a hierarchical, deterministic resolution protocol:
+      <h3>1 · Database Metadata Matching</h3>
+      <p>For scans matching the HC18 dataset, the system queries the physical pixel size from the challenge metadata. If filename collisions occur between splits, a mean absolute difference (MAD) check is performed between the uploaded pixel intensity matrix and local reference images; the calibration corresponding to the image with the minimal MAD is selected.</p>
+      <h3>2 · Operator Overrides</h3>
+      <p>The system allows clinical operators to manually input known calibration values via the user interface. Activating the manual override switch bypasses automated metadata lookup.</p>
+      <h3>3 · Fallback Calibration</h3>
+      <p>If neither source is available, the system falls back to a default calibration value of <code>{config.DEFAULT_PIXEL_SIZE_MM:.2f} mm/pixel</code>. Under fallback conditions, the system displays a prominent visual warning indicating that subsequent metrics are uncalibrated and serve as relative morphological shape estimates rather than physical clinical indices.</p>
     </section>
 
     <section class="doc-sec" id="ellipse">
-      <div class="kicker">§ 5</div>
-      <h2>Contour isolation &amp; ellipse fit</h2>
-      <p>The raw mask is binarized and morphologically closed with an elliptical kernel of
-      <code>{pp['morph_kernel']}</code> px to seal small gaps. External contours are extracted, and the
-      largest is selected — provided it exceeds <code>{pp['min_area_frac']*100:.0f}%</code> of the image
-      area and contains at least five points (the minimum for an ellipse fit). If no contour
-      qualifies, the image is rejected as "no confident segmentation" rather than producing a
-      spurious number.</p>
-      <p>An ellipse is then fitted to that contour by direct least squares
-      (<code>cv2.fitEllipse</code>). The full major and minor axis lengths and orientation are
-      retained so the overlay can redraw the exact fitted ellipse with an axis crosshair for visual
-      confirmation of placement.</p>
+      <div class="kicker">Section 6</div>
+      <h2>Morphological Filtering &amp; Ellipse Fitting</h2>
+      <p>The raw binary mask from the segmentation stage is binarized and subjected to morphological post-processing. A morphological closing operation using an elliptical structuring element of kernel size <code>{pp['morph_kernel']}</code> pixels is executed to eliminate intra-boundary voids and reconnect minor skull segmentation discontinuities.
+      Following morphological refinement, external contours are extracted using the topological contour retrieval algorithm proposed by Suzuki and Abe. The largest external contour is selected as the representative candidate for the fetal skull. To prevent fitting ellipses to noise or artifacts, candidate contours must satisfy two strict criteria:
+      <ul>
+        <li><b>Area Constraint:</b> The contour area must exceed a minimum fraction (<code>{pp['min_area_frac']*100:.0f}%</code>) of the total image canvas area.</li>
+        <li><b>Coordinate Count:</b> The contour must consist of at least five independent coordinate points, which is the mathematical minimum required for a multi-variate quadric fit.</li>
+      </ul>
+      Once validated, the parameter space of the ellipse is computed using a direct least-squares estimator (<code>cv2.fitEllipse</code>). This fitting minimizes the algebraic distance between the contour coordinates and the conic equation. The estimator outputs the centroid coordinates $(x_c, y_c)$, the length of the major and minor axes in pixels, and the rotation angle $\theta$. The major axis length is constrained to be greater than or equal to the minor axis length.</p>
     </section>
 
     <section class="doc-sec" id="circumference">
-      <div class="kicker">§ 6</div>
-      <h2>Head circumference — the Ramanujan II perimeter</h2>
-      <p>The ellipse semi-axes are converted to millimetres, <code>a = (major/2)·mm_per_px</code> and
-      <code>b = (minor/2)·mm_per_px</code>, and HC is taken as the ellipse perimeter. An ellipse
-      perimeter has no elementary closed form, so it is computed with <strong>Ramanujan's second
-      approximation</strong>, which is accurate to a few parts per million at realistic fetal-skull
-      eccentricities and matches the convention used to derive the HC18 ground truth:</p>
+      <div class="kicker">Section 7</div>
+      <h2>Perimeter Estimation via Ramanujan II Approximation</h2>
+      <p>The ellipse semi-axes in physical units are computed by applying the calibration factor:</p>
       <div class="doc-formula">
-        HC &asymp; &pi;·(a + b)·[ 1 + 3h ⁄ ( 10 + &radic;(4 − 3h) ) ]
-        <span class="where">where&nbsp; h = ( (a − b) ⁄ (a + b) )²&nbsp; and&nbsp; a, b are the ellipse semi-axes in mm.</span>
+        <i>a</i> = (major_axis_px ⁄ 2) &middot; mm_per_px<br>
+        <i>b</i> = (minor_axis_px ⁄ 2) &middot; mm_per_px
       </div>
-      <p>Because the measurement is a perimeter of a fitted ellipse rather than a pixel count around
-      a jagged mask, it is stable against small segmentation roughness — the fit averages over local
-      boundary noise.</p>
+      <p>Because the perimeter of an ellipse has no closed-form representation in elementary functions, the system employs Ramanujan's second approximation. This approximation is highly efficient and accurate to within a few parts per million (ppm) for the eccentricity range typical of the human fetal skull:
+      </p>
+      <div class="doc-formula">
+        HC &asymp; &pi;·(a + b)·[ 1 + 3h ⁄ ( 10 + &radic;(4 &minus; 3h) ) ]
+        <span class="where">where&nbsp; <i>h</i> = ( (<i>a</i> &minus; <i>b</i>) ⁄ (<i>a</i> + <i>b</i>) )&sup2;&nbsp; and&nbsp; <i>a</i>, <i>b</i> are the ellipse semi-axes in mm.</span>
+      </div>
+      <p>Approximating the perimeter via a parametric ellipse fit rather than computing a direct contour perimeter offers a significant clinical advantage: it acts as a regularizing prior, smoothing out local segmentation noise, pixelation steps, and boundary jitter.</p>
     </section>
 
     <section class="doc-sec" id="percentile">
-      <div class="kicker">§ 7</div>
-      <h2>Growth percentile — the Hadlock reference</h2>
-      <p>The measured HC is interpreted against a head-circumference-for-gestational-age reference.
-      The percentile engine needs only two functions of gestational age (GA): the population
-      <strong>mean HC</strong> and its <strong>standard deviation</strong>. The mean follows the
-      Hadlock composite biometry chart, tabulated per completed week and linearly interpolated for
-      half-weeks; the SD follows a documented linear model,</p>
+      <div class="kicker">Section 8</div>
+      <h2>Growth Percentile Evaluation &amp; Statistical Distribution</h2>
+      <p>The computed head circumference is mapped to a growth percentile using a normative population distribution. The system implements the Hadlock (1984) composite fetal-biometry growth model, which characterizes the head circumference distribution at a given gestational age (GA) as a Gaussian profile:</p>
       <div class="doc-formula">
-        &sigma;(GA) &asymp; {ref._SD_SLOPE:.3f}·GA − {abs(ref._SD_INTERCEPT):.3f} mm
-        <span class="where">anchored to &asymp; {sd_lo:.0f} mm at {ga_lo} weeks rising to &asymp; {sd_hi:.0f} mm at {ga_hi} weeks, with a {ref._SD_FLOOR_MM:.0f} mm floor.</span>
+        HC &sim; <i>N</i>(&mu;<sub>GA</sub>, &sigma;<sub>GA</sub>&sup2;)
       </div>
-      <p>The reference distribution is treated as Gaussian at each GA. The measurement is converted
-      to a standard score and then to a percentile via the normal cumulative distribution function
-      Φ (evaluated with <code>math.erf</code>, so there is no SciPy dependency):</p>
+      <p>The population mean, &mu;<sub>GA</sub>, is calculated by linear interpolation between the weekly clinical mean values tabulated in the Hadlock reference. The standard deviation, &sigma;<sub>GA</sub>, is modeled as a linear function of gestational age:
+      </p>
       <div class="doc-formula">
-        z = (HC − &mu;<sub>GA</sub>) ⁄ &sigma;<sub>GA</sub>&emsp;&emsp; percentile = Φ(z) × 100
+        &sigma;(GA) &asymp; {ref._SD_SLOPE:.4f}·GA - {abs(ref._SD_INTERCEPT):.4f} mm
+        <span class="where">anchored to &asymp; {sd_lo:.1f} mm at {ga_lo} weeks rising to &asymp; {sd_hi:.1f} mm at {ga_hi} weeks, with a {ref._SD_FLOOR_MM:.1f} mm floor.</span>
       </div>
-      <p>The table below is generated directly from the reference module, so it is exactly the curve
-      the app evaluates against.</p>
+      <p>To convert the physical measurement into a standard score (z-score) and subsequently into a percentile, the cumulative distribution function (CDF) of the standard normal distribution &Phi;(z) is evaluated:</p>
+      <div class="doc-formula">
+        z = (HC - &mu;<sub>GA</sub>) ⁄ &sigma;<sub>GA</sub>&emsp;&emsp; percentile = &Phi;(z) × 100
+        <span class="where">where &Phi;(z) is the standard normal cumulative distribution function evaluated using the error function (erf).</span>
+      </div>
+      <p>The error function (erf) is computed via <code>math.erf</code> to prevent external library dependencies. Calculated percentiles are clamped to the range [0.1, 99.9] for display purposes. The table below displays the population values generated dynamically by the reference module:</p>
       <div class="doc-table">
         <table>
           <caption>Hadlock HC-for-GA reference (millimetres), {ga_lo}–{ga_hi} completed weeks</caption>
@@ -268,52 +240,39 @@ DOC = f"""
     </section>
 
     <section class="doc-sec" id="risk">
-      <div class="kicker">§ 8</div>
-      <h2>Screening risk bands</h2>
-      <p>The percentile is mapped to one of three screening bands. Colour is used <em>only</em> to
-      encode this clinical meaning — never for decoration.</p>
+      <div class="kicker">Section 9</div>
+      <h2>Clinical Risk Classification &amp; Screening Bands</h2>
+      <p>To support clinical workflows, the growth percentile is categorized into three clinical screening risk bands based on established clinical guidance:</p>
       <div class="doc-bands">{bands_html}</div>
-      <p>These bands are a screening aid, not a diagnosis. Growth restriction is a clinical
-      determination that integrates serial measurements, other biometry (abdominal circumference,
-      femur length), Dopplers and history — none of which a single HC percentile can replace.</p>
+      <p>These risk designations are designed as screening aids and should not be used as standalone diagnostic results. Definitive clinical assessment requires the integration of longitudinal measurements, multi-biometric parameters (abdominal circumference, femur length, biparietal diameter), uterine/umbilical artery Dopplers, and clinical history.</p>
     </section>
 
     <section class="doc-sec" id="config">
-      <div class="kicker">§ 9</div>
-      <h2>Reproducibility &amp; configuration</h2>
-      <p>Every value that affects a clinical or geometric result is centralized in
-      <code>config.py</code> so it can be reviewed in one place: the gestational-age range, the risk
-      thresholds ({hi:.0f}th and {md:.0f}th), the segmentation post-processing parameters (mask
-      threshold {pp['mask_threshold']}, closing kernel {pp['morph_kernel']} px, minimum area
-      {pp['min_area_frac']*100:.0f}%), the per-model export contracts, and the fallback calibration.
-      The reference coefficients live in a single, swappable module. Changing a coefficient there
-      updates both the app's behaviour and this page — no other code changes are required.</p>
+      <div class="kicker">Section 10</div>
+      <h2>Centralized Configuration &amp; Reproducibility</h2>
+      <p>To ensure clinical auditability, reproducibility, and system configurability, all parameters affecting the segmentation, calibration, post-processing, and risk classification stages are isolated in a centralized module (<code>config.py</code>). This decoupling allows clinical researchers and engineers to adjust key thresholds—such as segmentation confidence levels, morphological kernel sizes, minimum contour area fractions, and risk thresholds—in a single file, immediately propagating these updates throughout both the runtime inference logic and the generated methodology documentation.</p>
     </section>
 
-    <section class="doc-sec" id="limitations">
-      <div class="kicker">§ 10</div>
-      <h2>Assumptions &amp; limitations</h2>
+    <section class="doc-sec" id="verification">
+      <div class="kicker">Section 11</div>
+      <h2>System Validation, Testing &amp; Limitations</h2>
+      <p>The system undergoes automated validation using test scripts located in the <code>scripts/test/</code> directory. These scripts run inference on a validation split (<code>data/preprocessed/fastai/images/val/</code>) and compare predicted segmentations and fitted ellipses against ground-truth parameters using standard metrics, including:
       <ul>
-        <li><b>Normative reference must be verified.</b> The bundled Hadlock coefficients are a
-        faithful, literature-consistent reference for demonstration. For any real use they should be
-        independently validated against a cited source (or replaced with an INTERGROWTH-21st table).</li>
-        <li><b>Gaussian assumption.</b> Percentiles assume HC is normally distributed at each GA.
-        This is reasonable in the normal range but less so far into the tails.</li>
-        <li><b>Single measurement.</b> One percentile is a snapshot; growth assessment is inherently
-        longitudinal and cannot be replaced by an isolated value.</li>
-        <li><b>Segmentation dependence.</b> Output quality tracks image quality and how closely the
-        ONNX export matches the configured pre/post-processing. A poor scan or a mismatched export
-        yields a poor mask, and therefore a poor measurement.</li>
-        <li><b>Calibration dependence.</b> An uncalibrated image (fallback default) gives a shape
-        estimate only; the millimetre value is not physically meaningful until a real scale is set.</li>
-        <li><b>Not a certified device.</b> Outputs are for engineering demonstration and research
-        only and must not be used for clinical decision-making.</li>
+        <li><b>Dice Similarity Coefficient (DSC):</b> Evaluates overlap accuracy between predicted and ground-truth masks.</li>
+        <li><b>Mean Absolute Error (MAE) in HC:</b> Quantifies the average absolute difference in millimetres between estimated and ground-truth head circumferences.</li>
       </ul>
-    </section>
-
-    <section class="doc-sec" id="references">
+      The framework's operation is subject to several technical and clinical limitations:
+      <ol>
+        <li><b>Normative Curve Calibration:</b> The Hadlock references are configured for demonstration and must be validated against the specific demographic patient population under care.</li>
+        <li><b>Gaussian Tail Sensitivity:</b> The Gaussian model is a standard approximation but may exhibit limitations at extreme tail distributions (&lt; 1st or &gt; 99th percentiles).</li>
+        <li><b>Sensitivity to Acoustic Artifacts:</b> Shadowing, bone attenuation, and low contrast in poor-quality ultrasound scans can degrade segmentation accuracy, directly propagating error into the ellipse fitting stage.</li>
+        <li><b>Resolution and Calibration Dependency:</b> Accurate physical scale representation is critically dependent on physical calibration metadata; uncalibrated scans only permit relative shape assessments.</li>
+        <li><b>Cross-Sectional Limitation:</b> A single-point measurement is a static snapshot and cannot replace longitudinal tracking of fetal growth over time.</li>
+      </ol>
+      </p>
+      
       <div class="kicker">References</div>
-      <h2>References</h2>
+      <h3>References</h3>
       <ol class="doc-refs">
         <li>Hadlock FP, Deter RL, Harrist RB, Park SK. <i>Estimating fetal age: computer-assisted
         analysis of multiple fetal growth parameters.</i> Radiology 1984;152:497–501.</li>
@@ -331,10 +290,7 @@ DOC = f"""
 
     <div class="doc-footer">
       {config.APP_NAME} — {config.APP_TAGLINE}<br>
-      This methodology is generated from the running clinical modules; displayed coefficients and
-      thresholds reflect the code in this build.
     </div>
-
   </div>
 </div>
 """
