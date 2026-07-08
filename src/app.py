@@ -46,13 +46,10 @@ def load_image(uploaded) -> np.ndarray:
 # Sidebar — input controls
 # --------------------------------------------------------------------------- #
 def render_sidebar() -> dict:
+    # The brand lockup + page navigation are rendered by
+    # ``theme.render_sidebar_nav`` before this function runs, so the sidebar
+    # here starts straight at the input controls.
     with st.sidebar:
-        st.markdown(
-            '<div class="fm-side-brand"><b>🩺 Fetal <span class="d">Metrics-AI</span></b></div>',
-            unsafe_allow_html=True,
-        )
-        st.divider()
-
         st.markdown(C.section_label("1 · Ultrasound image"), unsafe_allow_html=True)
         uploaded = st.file_uploader(
             "Upload a 2D fetal head ultrasound",
@@ -268,51 +265,12 @@ def render_results(state: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Methodology (always available — signals the research depth)
-# --------------------------------------------------------------------------- #
-def render_methodology() -> None:
-    with st.expander("Methodology, references & limitations"):
-        st.markdown(
-            """
-**Pipeline.** The uploaded 2D ultrasound is segmented by one of two exported
-architectures — a **YOLOv8-seg** single-stage detector with a prototype mask
-head, or a **U-Net** encoder–decoder — both served via ONNX Runtime. The
-predicted skull mask is cleaned, the largest contour is isolated, and a
-least-squares **ellipse** is fitted (`cv2.fitEllipse`).
-
-**Head circumference.** The ellipse semi-axes are converted from pixels to
-millimetres using the image calibration (HC18 `pixel size(mm)` metadata, or a
-manual scale). The circumference is the ellipse perimeter, computed with the
-**Ramanujan II** approximation
-`C ≈ π(a+b)[1 + 3h/(10 + √(4−3h))]`, `h = ((a−b)/(a+b))²` — the same convention
-used to derive HC18 ground truth.
-
-**Growth percentile.** The measured HC is placed on a **Hadlock**
-head-circumference-for-gestational-age reference (mean and SD per week). The
-z-score `(HC − mean)/SD` maps to a percentile via the normal CDF.
-
-**Screening bands.** `<10th` percentile → **High** (possible IUGR); `10–25th` →
-**Medium** (borderline); `>25th` → **Normal**.
-
-**References.** Hadlock FP et al., *Radiology* 1984;152:497-501. van den Heuvel
-TLA et al., *PLoS ONE* 2018 (HC18 Grand Challenge). Ramanujan S., *Quarterly
-Journal of Mathematics* 1914.
-
-**Limitations.** A research prototype: percentile reference coefficients should
-be independently verified before any real use; segmentation quality depends on
-image quality and on how closely the ONNX export matches the configured
-pre/post-processing; and single-measurement percentiles cannot replace serial
-clinical assessment. **Not a certified diagnostic device.**
-            """
-        )
-
-
-# --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
 def main() -> None:
-    theme.configure_page()
+    theme.configure_page("analyze")
     theme.inject_styles()
+    theme.render_sidebar_nav("analyze")
 
     st.markdown(C.header_html(), unsafe_allow_html=True)
     st.markdown(C.safety_banner_html(), unsafe_allow_html=True)
@@ -324,13 +282,12 @@ def main() -> None:
         if not registry.any_available():
             st.info(
                 "No model weights detected yet. Drop `yolov8_hc.onnx` and "
-                "`unet_hc.onnx` into the `models/` folder to enable inference.",
+                "`unet_hc.onnx` into the `models/` folder to enable inference. "
+                "See the Methodology page for the exact export layout each model expects.",
                 icon="📦",
             )
     else:
         render_results(state)
-
-    render_methodology()
 
 
 if __name__ == "__main__":

@@ -1,20 +1,25 @@
-# Streamlit theme — a dark clinical "research console" register.
-# Grayscale ultrasound and the cyan overlay read best on a deep ink canvas.
-# Risk colors (crimson / amber / emerald) are reserved for semantics in-app.
+# =============================================================================
+# fetalmetrics-ai — Streamlit runtime theme
+# Clinical-light "medical instrument" palette. The full visual system lives in
+# src/assets/styles.css; this file only teaches Streamlit's *native* widgets
+# (slider, radio, number input, alerts, spinner, checkbox) the base palette so
+# they sit correctly on the light canvas. Custom-drawn components are styled in
+# the stylesheet.
+# =============================================================================
 
 [theme]
-base = "dark"
-primaryColor = "#22D3EE"                 # clinical cyan — actions & focus
-backgroundColor = "#0A111F"              # deep ink canvas
-secondaryBackgroundColor = "#111C2E"     # panels / sidebar
-textColor = "#E6EDF6"
+base = "light"
+primaryColor = "#0F766E"            # deep medical teal — interactive accent
+backgroundColor = "#F4F6F9"         # clinical paper canvas
+secondaryBackgroundColor = "#FFFFFF" # sidebar + widget surfaces
+textColor = "#16202E"               # deep slate ink
 font = "sans serif"
 
-[server]
-maxUploadSize = 25
-enableXsrfProtection = true
-address = "0.0.0.0"
-port = 8501
+[client]
+# We render our own controlled sidebar navigation (Analyze / Methodology),
+# so the automatic multipage nav widget is hidden for a cleaner instrument feel.
+showSidebarNavigation = false
+toolbarMode = "minimal"
 
-[browser]
-gatherUsageStats = false
+[server]
+runOnSave = true

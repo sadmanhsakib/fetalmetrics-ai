@@ -54,15 +54,18 @@ GA_DEFAULT_WEEKS: float = 28.0
 # --------------------------------------------------------------------------- #
 # Clinical risk bands (percentile thresholds) + semantic colors
 # Colors are used ONLY to encode risk, never for decoration.
+# Tuned for the clinical-light canvas: -600 weight hues read clearly on white,
+# with low-alpha soft fills. Must stay in sync with the --risk-* CSS vars in
+# assets/styles.css.
 # --------------------------------------------------------------------------- #
 HIGH_RISK_MAX_PCT: float = 10.0     # percentile < 10  -> High risk (IUGR alert)
 MEDIUM_RISK_MAX_PCT: float = 25.0   # 10 <= pct < 25    -> Medium (borderline)
 # pct >= 25 -> Normal
 
 RISK_COLORS: dict[str, dict[str, str]] = {
-    "HIGH": {"solid": "#EF4444", "accent": "#F43F5E", "soft": "rgba(239,68,68,0.14)"},
-    "MEDIUM": {"solid": "#F59E0B", "accent": "#D97706", "soft": "rgba(245,158,11,0.14)"},
-    "NORMAL": {"solid": "#10B981", "accent": "#059669", "soft": "rgba(16,185,129,0.14)"},
+    "HIGH":   {"solid": "#DC2626", "accent": "#B91C1C", "soft": "rgba(220,38,38,0.08)"},
+    "MEDIUM": {"solid": "#D97706", "accent": "#B45309", "soft": "rgba(217,119,6,0.09)"},
+    "NORMAL": {"solid": "#16A34A", "accent": "#15803D", "soft": "rgba(22,163,74,0.09)"},
 }
 
 # --------------------------------------------------------------------------- #
