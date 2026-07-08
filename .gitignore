@@ -8,8 +8,7 @@ __pycache__/
 
 # project
 data/
-*.md
-!README.md
+
 test.py
 test.ipynb
 .DS_Store
