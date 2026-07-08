@@ -340,4 +340,4 @@ DOC = f"""
 </div>
 """
 
-st.markdown(DOC, unsafe_allow_html=True)
+st.html(DOC)
