@@ -104,7 +104,7 @@ The system processes input scans through a sequential, modular pipeline. This ar
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║               inference/ — DEEP INFRASTRUCTURE INFRASTRUCTURE         ║
 ║                                                                       ║
-║   [Option A: YOLOv8s-seg]             [Option B: U-Net ResNet34]       ║
+║   [Option A: YOLOv8s-seg]             [Option B: U-Net ResNet34]      ║
 ║   • Letterbox to 640x640              • Resize to 256x256             ║
 ║   • Normalise to [0,1]                • Standardise (ImageNet stats)  ║
 ║   • ONNX Runtime Inference            • ONNX Runtime Inference        ║
@@ -151,9 +151,13 @@ The system processes input scans through a sequential, modular pipeline. This ar
 ### 1. Spatially-Calibrated Target Disambiguation (MAD Checking)
 The HC18 dataset contains file naming overlaps between its training and test splits. Because spatial calibration values ($S_{\text{px}}$ in mm/pixel) differ between these images, looking up the scale using only the filename can lead to errors. 
 
-To resolve this, the system implements an automated **Mean Absolute Difference (MAD)** check. When a filename collision occurs, the system reads the local reference images from the training and test directories and calculates the mean absolute difference in pixel intensity:
-$$\text{MAD} = \frac{1}{H \cdot W \cdot C} \sum_{i,j,k} |I^{\text{upload}}_{i,j,k} - I^{\text{ref}}_{i,j,k}|$$
-If the pixel size is exact ($\text{MAD} < 5.0$), the system matches the uploaded file to the correct split. This method resolves the collision without requiring manual input.
+To resolve this, the system implements an automated **Mean Absolute Difference (MAD)** check. When a filename collision occurs, the system computes the following value:
+
+```math
+\mathrm{MAD} = \frac{1}{H \cdot W \cdot C} \sum_{i,j,k} \left| I^{\mathrm{upload}}_{i,j,k} - I^{\mathrm{ref}}_{i,j,k} \right|
+```
+
+If `MAD < 5.0`, the system matches the uploaded file to the correct split. This method resolves the collision without requiring manual input.
 
 ### 2. Dual-Architecture ONNX CPU Serving
 The system supports dual inference models without requiring GPU runtimes or PyTorch/TensorFlow dependencies in production:
