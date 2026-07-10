@@ -63,10 +63,38 @@ html, body, [class*="css"], .stApp {
   max-width: 1160px;
 }
 
-/* hide default Streamlit chrome for a product feel */
-#MainMenu, header[data-testid="stHeader"], footer { visibility: hidden; }
-[data-testid="stToolbar"], [data-testid="stDecoration"] { display: none; }
+/* hide default Streamlit chrome for a product feel
+   Keep the header toolbar available because Streamlit places the
+   "expand sidebar" control there when the sidebar is collapsed. */
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stDecoration"] { display: none; }
 [data-testid="stStatusWidget"] { display: none; }
+
+header[data-testid="stHeader"] {
+  background: transparent;
+}
+[data-testid="stToolbar"] {
+  position: fixed;
+  top: 0.8rem;
+  left: 0.8rem;
+  z-index: 1000;
+}
+[data-testid="stToolbar"] [data-testid="stExpandSidebarButton"] {
+  visibility: visible !important;
+}
+[data-testid="stToolbar"] [data-testid="stBaseButton-headerNoPadding"] {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+[data-testid="stToolbar"] [data-testid="stBaseButton-headerNoPadding"]:hover {
+  border-color: var(--primary-line);
+  background: var(--surface);
+}
 
 .mono { font-family: var(--mono); font-feature-settings: "tnum" 1; }
 
