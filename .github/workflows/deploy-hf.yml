@@ -20,8 +20,8 @@ jobs:
           fetch-depth: 1
           lfs: true
 
-      - name: Install huggingface_hub
-        run: pip install huggingface_hub
+      - name: Install huggingface_hub & dotenv
+        run: pip install huggingface_hub dotenv
 
       - name: Upload to Hugging Face
         env:
